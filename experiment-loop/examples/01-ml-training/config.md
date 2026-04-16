@@ -3,7 +3,6 @@
 ## Fix
 
 - target: `train.py`
-- read_only_context: `prepare.py`, `data/`
 - eval_command: `uv run train.py`
 - timeout_sec: 330
 - metric_name: `val_loss`

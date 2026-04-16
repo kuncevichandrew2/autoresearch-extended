@@ -3,7 +3,6 @@
 ## Fix
 
 - target: `src/api/search.py`
-- read_only_context: `src/api/bench.py`, `src/api/fixtures/`
 - eval_command: `pytest src/api/bench.py -q`
 - timeout_sec: 120
 - metric_name: `p50_ms`

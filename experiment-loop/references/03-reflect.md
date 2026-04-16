@@ -66,7 +66,7 @@ target files or re-runs the eval.
    ```
    Reflection complete | <N> experiments | strategy level: <L> | <K> ideas queued
    ```
-   and return control. The next cycle runs the loop again.
+   and return control. The next cycle runs develop again.
 
 ## When to escalate
 

@@ -1,6 +1,15 @@
-# loop
+# develop
 
 Per-experiment protocol. One call = one experiment.
+
+## Working principle
+
+**Surgical, single-variable diffs.** Every changed line must trace
+directly to the hypothesis in step 2. If you're tempted to fix an
+adjacent thing, rename a variable, or "improve" nearby code — don't.
+Queue it as a new idea after the next reflect. Match existing style even
+if you'd do it differently. Remove only imports / helpers that YOUR
+change orphaned; leave pre-existing dead code alone.
 
 ## Protocol
 
@@ -48,7 +57,7 @@ Per-experiment protocol. One call = one experiment.
      >/tmp/run.log 2>&1
    EVAL_EXIT=$?
    ```
-   Never pipe the log elsewhere; the loop re-reads it on crashes.
+   Never pipe the log elsewhere; the develop cycle re-reads it on crashes.
 
 7. **Parse metric.** Use `config.parse_method`:
    - `summary_block` — extract the last fenced ```json block, take
@@ -111,10 +120,10 @@ Per-experiment protocol. One call = one experiment.
   recommend re-setup.
 - **Crash loop** — 3 crashes in 5 experiments. Trigger reflect on the
   next cycle regardless of `reflect_every`.
-- **Flat metric** — `no_improvement_streak ≥ reflect_on_plateau`. Loop
-  dispatcher routes to reflect next.
+- **Flat metric** — `no_improvement_streak ≥ reflect_on_plateau`. The
+  phase dispatcher routes to reflect next.
 - **Regression marked kept** — the parser returned the wrong sign. Audit
   `metric_direction` and the parse expression against `/tmp/run.log`;
-  fix in setup, never mid-loop.
+  fix in setup, never mid-develop.
 - **Missing log row** — if `results.tsv` wasn't appended, the run didn't
   happen. Re-run the experiment from scratch; do not synthesize a row.

@@ -27,4 +27,4 @@ jq '.design_score' /tmp/judge.json > metric.txt
 
 The judge (`judge.py`) posts the screenshot to the Anthropic API with a
 rubric prompt and returns JSON with a `design_score` field. `metric.txt`
-is what the loop parses; everything else is plumbing.
+is what develop parses; everything else is plumbing.

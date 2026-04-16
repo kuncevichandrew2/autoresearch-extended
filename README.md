@@ -65,7 +65,7 @@ autonomously and reflects on the trajectory every few experiments.
            └────┬─────┘
                 │
         ┌───────▼────────┐      every N experiments
-        │      loop      ├──────────────────────────┐
+        │     develop    ├──────────────────────────┐
         │ edit → run →   │                          │
         │ measure → keep │                          ▼
         │ or discard     │◄──────────────────┐ ┌─────────┐

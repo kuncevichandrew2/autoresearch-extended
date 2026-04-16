@@ -4,7 +4,14 @@ One-time collaborative setup. Runs the first time the skill is invoked in
 a project. Exit this phase only after a baseline has been run and logged.
 
 > If `./autoresearch/config.md` already exists with no `<FILL IN>` tokens,
-> skip setup and go to loop.
+> skip setup and go to **develop**.
+
+## Working principle
+
+Do not assume and do not hide confusion. If multiple interpretations of the
+target, eval, or metric exist, **present them and ask** — never pick
+silently. Surface tradeoffs. Simpler framings first. This is the one phase
+where questions are cheaper than wrong defaults.
 
 ## Protocol
 
@@ -52,10 +59,12 @@ a project. Exit this phase only after a baseline has been run and logged.
    lines) in the template.
 
 7. **Draft `./autoresearch/config.md`.** Two sections:
-   - `## Fix` (frozen after setup): `target:`, `read_only_context:`,
-     `eval_command:`, `timeout_sec:`, `metric_name:`,
-     `metric_direction: min|max`, `metric_source: human|code|llm-judge`,
+   - `## Fix` (frozen after setup): `target:`, `eval_command:`,
+     `timeout_sec:`, `metric_name:`, `metric_direction: min|max`,
+     `metric_source: human|code|llm-judge`,
      `parse_method: summary_block|regex:...|json_path:...|file:...|exit_code`.
+     Every file not listed in `target` is implicitly read-only and may
+     not be modified.
    - `## Changeable` (mutable between runs): `reflect_every: 5`,
      `reflect_on_plateau: 3`, `max_experiments: unlimited`,
      `stop_after_plateau: never`.
@@ -80,11 +89,12 @@ a project. Exit this phase only after a baseline has been run and logged.
       changes: none; result: baseline value).
 
 11. **Print** `Setup complete. Baseline <metric_name>=<value>.` and hand
-    control to the loop phase on the next invocation.
+    control to the develop phase on the next invocation.
 
 ## After setup
 
-The `## Fix` section of `config.md`, the `eval_command`, and any
-scaffolded `eval.sh` / `eval.py` / eval folder become **read-only** for
-the loop. Edits to them are scope violations. If the user needs to change
+Everything outside `config.target` is **read-only**. That includes the
+`## Fix` section of `config.md`, any scaffolded `eval.sh` / `eval.py` /
+eval folder, `context.md`, `auxiliary.md`, and every other file in the
+repo. Edits to them are scope violations. If the user needs to change
 the eval, they must re-enter setup explicitly.

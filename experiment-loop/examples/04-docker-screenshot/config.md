@@ -3,7 +3,6 @@
 ## Fix
 
 - target: `src/ui/Landing.tsx`
-- read_only_context: `Dockerfile`, `eval.sh`, `judge.py`, `rubric.md`
 - eval_command: `bash eval.sh`
 - timeout_sec: 300
 - metric_name: `design_score`
