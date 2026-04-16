@@ -1,100 +1,120 @@
 # setup
 
-One-time collaborative setup. Runs the first time the skill is invoked in
-a project. Exit this phase only after a baseline has been run and logged.
+One-time collaborative setup, four internal phases:
 
-> If `./autoresearch/config.md` already exists with no `<FILL IN>` tokens,
-> skip setup and go to **develop**.
+1. **Analyze & propose** — read the repo, print a full proposal, ask for
+   missing context.
+2. **Scaffold** — write `config.md`, `context.md`, any missing eval artifact.
+   One "Approve?" gate.
+3. **Baseline** — run the eval once unmodified, initialize state.
+4. **Hand off** — exit to develop, which loops autonomously.
+
+> Exit setup only after phase 3 produces a real baseline metric.
 
 ## Working principle
 
-Do not assume and do not hide confusion. If multiple interpretations of the
-target, eval, or metric exist, **present them and ask** — never pick
-silently. Surface tradeoffs. Simpler framings first. This is the one phase
-where questions are cheaper than wrong defaults.
+**Propose, don't interrogate.** The first thing the user sees is a complete
+proposal they can react to — not a questionnaire. Read the code before asking.
+The only question allowed before the proposal is none; the only question
+after it is "what other context should I know?".
 
-## Protocol
+## Phase 1 — analyze & propose
 
-1. **Elicit target files and scalar metric.** Ask: "Which file(s) should I
-   edit?" and "Which scalar are we optimizing, and should it go up or
-   down?" Record verbatim.
+1. **Inventory the repo.**
+   - `ls -la` at root. Read `README*`, `pyproject.toml` / `package.json` /
+     equivalent, any `Makefile`, any existing entrypoints.
+   - `git log --oneline -n 20` to see active work.
+   - Scan for: entrypoint scripts, metric-producing code, data/eval splits,
+     existing test/bench harnesses.
+   - Cap at ~15 files; skim, don't deep-read. Prioritize README and whatever
+     it points to.
 
-2. **Write `./autoresearch/context.md` collaboratively.** Propose this
-   structure if the user is vague:
-   - Project overview (2–4 sentences).
-   - What we're optimizing and why.
-   - **Hard constraints** — rules the agent must never break (e.g. "do
-     not disable safety tests", "never hard-code the eval split",
-     "model params stay under 10M"). These are the primary defense
-     against metric gaming.
-   - What's already been tried.
-   - Domain knowledge and pointers.
+2. **Print one proposal block** with:
+   - **Project** — 2–4 sentences on what this repo does.
+   - **Proposed target** — one file (or small set) the agent will edit.
+     Name the path; justify in one sentence. If the target doesn't exist
+     yet, say so and mark "will scaffold in phase 2".
+   - **Proposed metric** — `name`, `direction: min|max`,
+     `source: human|code|llm-judge`, `parse_method`. Justify briefly.
+   - **Proposed eval** — the shell command and what it runs. If multi-step,
+     sketch the pipeline.
+   - **Proposed budget** — `timeout_sec` inferred from what the eval looks
+     like it takes.
+   - **Assumptions** — 2–5 bullets (hardware, dataset, eval fidelity,
+     anything inferred rather than read).
+   - **Open questions** — 0–3 specific questions the user must resolve
+     before phase 2.
 
-3. **Decide metric source.** One of:
-   - `human` — user writes the value into a file.
-   - `code` — the eval program prints / emits it.
-   - `llm-judge` — a judge model scores output; parse its JSON.
+3. **Ask for user context, once:**
+   > "Any additional context, constraints, or corrections? (hardware, hard
+   > rules, things to avoid, scope limits, things I misread)"
 
-4. **Design the eval pipeline together.** Walk through each step out loud:
-   what runs, where the scalar comes from, how failures surface. Collapse
-   to ONE shell command. If multi-step, scaffold `eval.sh` (or
-   `eval.py`) at the project root WITH the user. Typical shapes:
-   - `uv run train.py` (single command, prints summary).
-   - `pytest bench.py -q` (single command, regex the line).
-   - `bash eval.sh` (multi-step: build → run → screenshot → judge →
-     write `metric.txt`).
+   Wait for a reply. `none` is valid.
 
-5. **Pick the parse method.** Defaults by source:
-   - `code` → `summary_block` (a fenced JSON block) or `regex:<pattern>`.
-   - `llm-judge` → `json_path:$.score` on judge output.
-   - `human` → `file:<path>`.
-   - Any source can fall back to `exit_code` (0 = pass, nonzero = fail).
-   Run the eval once on current code and verify the parser against real
-   output before proceeding.
+4. **Fold the reply into the proposal.** If the user changed target, metric,
+   eval, or budget, reprint the affected lines. Do not advance while open
+   questions remain.
 
-6. **Identify auxiliary integrations.** Fill `./autoresearch/auxiliary.md`.
-   Per integration: name, purpose, files involved, how it's invoked
-   (usually from `eval.sh`), required **API key names and where to set
-   them** (never store values). Include one worked example (W&B, ~20
-   lines) in the template.
+## Phase 2 — scaffold
 
-7. **Draft `./autoresearch/config.md`.** Two sections:
-   - `## Fix` (frozen after setup): `target:`, `eval_command:`,
-     `timeout_sec:`, `metric_name:`, `metric_direction: min|max`,
-     `metric_source: human|code|llm-judge`,
-     `parse_method: summary_block|regex:...|json_path:...|file:...|exit_code`.
-     Every file not listed in `target` is implicitly read-only and may
-     not be modified.
-   - `## Changeable` (mutable between runs): `reflect_every: 5`,
-     `reflect_on_plateau: 3`, `max_experiments: unlimited`,
-     `stop_after_plateau: never`.
+5. **Write `./autoresearch/context.md`**: project overview, what we're
+   optimizing and why, **hard constraints** (the user's reply verbatim plus
+   the obvious ones from the proposal), what's already been tried (if
+   visible in git), domain pointers.
 
-8. **Show everything and get explicit approval.** Print the full
-   `config.md`, the `eval_command`, the metric direction, and the parser.
-   Ask: "Approve? (yes/no)". Do not proceed on silence.
+6. **Write `./autoresearch/auxiliary.md`** for side integrations (W&B, Slack,
+   …). One template entry with API-key-name placeholders; empty if nothing
+   applies.
 
-9. **Run the baseline.** Execute the eval command once unmodified. Parse
-   failure → stop, show stderr, fix with the user, try again. Success →
-   capture the metric as `best` and `last`.
+7. **Write `./autoresearch/config.md`**:
+   - `## Fix` — `target`, `eval_command`, `timeout_sec`, `metric_name`,
+     `metric_direction`, `metric_source`, `parse_method`.
+   - `## Changeable` — `reflect_every: 5`, `reflect_on_plateau: 3`,
+     `max_experiments: unlimited`, `stop_after_plateau: never` (override
+     per proposal).
 
-10. **Initialize project state.** Create:
-    - `./autoresearch/state.md` with empty strategy sections, mechanical
-      sections seeded: `best = <baseline>`, `last = <baseline>`,
-      `experiments_since_reflection = 0`, `no_improvement_streak = 0`,
-      first idea: `Run baseline.` (already done — mark it).
-    - `./autoresearch/results.tsv` with header
+8. **Scaffold missing eval artifacts.** If the proposal relies on `eval.sh`,
+   `eval.py`, a judge script, or an entrypoint that doesn't exist yet,
+   write them now. Do NOT modify existing eval code. If an existing
+   entrypoint doesn't print the metric yet, add that single print line —
+   and only that. Anything you scaffold here becomes read-only after setup.
+
+9. **Approve gate.** Print the full `config.md`, the full `context.md`, and
+   any scaffolded file. Ask exactly:
+   > "Approve? (yes/no)"
+
+   No silence. No implicit yes.
+
+## Phase 3 — baseline
+
+10. **Run the eval once unmodified.**
+    ```sh
+    timeout <timeout_sec> <eval_command> > /tmp/run.log 2>&1
+    ```
+    Parse failure → show stderr, fix collaboratively, re-run. Never skip.
+
+11. **Initialize project state.**
+    - `./autoresearch/state.md` — mechanical fields
+      (`best`, `last`, `experiments_since_reflection=0`,
+      `no_improvement_streak=0`) above the `<!-- outer-loop-only -->`
+      marker; empty strategy sections below.
+    - `./autoresearch/results.tsv` — header row
       `experiment\tcommit\tmetric\tdelta\tstatus\tdescription\ttimestamp\ttags`
-      and row `000`.
-    - `./autoresearch/experiments/000-baseline.md` (hypothesis: none;
-      changes: none; result: baseline value).
+      plus `000` baseline row.
+    - `./autoresearch/experiments/000-baseline.md` — hypothesis: none,
+      result: baseline value.
 
-11. **Print** `Setup complete. Baseline <metric_name>=<value>.` and hand
-    control to the develop phase on the next invocation.
+12. **Print** `Setup complete. Baseline <metric_name>=<value>. Entering develop.`
+    and hand off.
+
+## Phase 4 — hand off
+
+No further setup action. The next invocation routes to `02-develop.md` and
+runs autonomously until `max_experiments` or `stop_after_plateau`. Re-enter
+setup only on explicit user request — it destroys the prior contract.
 
 ## After setup
 
-Everything outside `config.target` is **read-only**. That includes the
-`## Fix` section of `config.md`, any scaffolded `eval.sh` / `eval.py` /
-eval folder, `context.md`, `auxiliary.md`, and every other file in the
-repo. Edits to them are scope violations. If the user needs to change
-the eval, they must re-enter setup explicitly.
+Everything outside `config.target` is **read-only**: the `## Fix` section of
+`config.md`, any scaffolded eval file, `context.md`, `auxiliary.md`, and
+every other file. Edits to them are scope violations.
