@@ -3,12 +3,12 @@
 Four fully-worked `config.md` files. Copy the closest match into
 `./autoresearch/config.md` during setup and adapt.
 
-| # | Domain | Target | Eval | Metric | Source | Parse |
-|---|---|---|---|---|---|---|
-| 01 | ML training | `train.py` | `uv run train.py` | `val_bpb` min | code | `regex: val_bpb:\s+([0-9.]+)` |
-| 02 | API latency | `src/api/search.py` | `pytest bench.py -q` | `p50_ms` min | code | `regex: p50=([0-9.]+)ms` |
-| 03 | Prompt eval | `prompts/assistant.md` | `npx promptfoo eval -c promptfoo.yaml --output out.json` | `pass_rate` max | code | `json_path: $.results.stats.successes` |
-| 04 | Docker + screenshot + LLM judge | `src/ui/Landing.tsx` | `bash eval.sh` | `design_score` max | llm-judge | `file:metric.txt` |
+| # | Domain | Target | Eval | Metric | Source | Parse | One-time bootstrap |
+|---|---|---|---|---|---|---|---|
+| 01 | ML training | `train.py` | `uv run train.py` | `val_bpb` min | code | `regex: val_bpb:\s+([0-9.]+)` | download + tokenize dataset, pin tokenizer |
+| 02 | API latency | `src/api/search.py` | `pytest bench.py -q` | `p50_ms` min | code | `regex: p50=([0-9.]+)ms` | seed fixtures DB, build indexes |
+| 03 | Prompt eval | `prompts/assistant.md` | `npx promptfoo eval -c promptfoo.yaml --output out.json` | `pass_rate` max | code | `json_path: $.results.stats.successes` | build golden eval set, pin judge model |
+| 04 | Docker + screenshot + LLM judge | `src/ui/Landing.tsx` | `bash eval.sh` | `design_score` max | llm-judge | `file:metric.txt` | `docker build` base image, install playwright browsers |
 
 Example 04 is the hardest case and demonstrates "eval can be a pipeline."
 Its `eval.sh` sketch:
