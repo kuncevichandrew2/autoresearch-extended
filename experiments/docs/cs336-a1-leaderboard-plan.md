@@ -13,7 +13,7 @@ Refs: [assignment](https://github.com/stanford-cs336/assignment1-basics)
 npm i -g @anthropic-ai/claude-code && claude login
 
 # 3. Install the skill.
-git clone git@github.com:kuncevichandrew2/autoresearch-extended.git \
+git clone https://github.com/kuncevichandrew2/autoresearch-extended.git \
   ~/.claude/skills/experiment-loop-repo
 ln -s ~/.claude/skills/experiment-loop-repo/experiment-loop \
   ~/.claude/skills/experiment-loop
@@ -37,7 +37,7 @@ Context: Stanford CS336 A1 leaderboard — minimize OpenWebText val_loss at
 context length 512, ≤ 2700 s per run on a single B200.
 
 Analyze the repo (note: no training entrypoint exists yet — you'll need to
-scaffold a Karpathy-style train.py that loads cs336_basics/ and prints`val_loss: <float>` as its last line) and propose the setup. I'll give
+scaffold a Karpathy-style train.py that loads cs336_basics/ and prints `val_loss: <float>` as its last line) and propose the setup. I'll give
 you hard constraints when you ask.
 ```
 

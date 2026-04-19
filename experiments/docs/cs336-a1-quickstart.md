@@ -7,7 +7,7 @@ Minimize OpenWebText val_loss, ctx=512, ≤2700 s on one B200.
 ```sh
 npm i -g @anthropic-ai/claude-code && claude login
 
-git clone git@github.com:kuncevichandrew2/autoresearch-extended.git ~/.claude/skills/experiment-loop-repo
+git clone https://github.com/kuncevichandrew2/autoresearch-extended.git ~/.claude/skills/experiment-loop-repo
 ln -s ~/.claude/skills/experiment-loop-repo/experiment-loop ~/.claude/skills/experiment-loop
 
 git clone https://github.com/stanford-cs336/assignment1-basics.git ~/a1
