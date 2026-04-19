@@ -2,9 +2,10 @@
 
 One-time collaborative setup. Five phases:
 
-1. **Analyze & propose** — read the repo, print a full proposal, ask for
-   missing context.
-2. **Scaffold** — write `config.md`, `context.md`, any missing eval artifact.
+1. **Explore & ask** — inventory the repo, then ask four structured
+   questions whose option lists are informed by what was found.
+2. **Scaffold** — write `config.md`, `context.md`, `auxiliary.md`, any
+   missing eval artifact, and request approval.
 3. **Bootstrap** — run everything that must happen exactly once (dataset
    load, preprocessing, fixture seeding, base image build, …).
 4. **Baseline** — run the eval once unmodified, initialize state.
@@ -14,27 +15,64 @@ Exit setup only after phase 4 produces a real baseline metric.
 
 ## Working principle
 
-**Propose, don't interrogate.** The first thing the user sees is a complete
-proposal they can react to — not a questionnaire. Read the code before
-asking. The only question allowed before the proposal is none; the only
-question after it is "what other context should I know?".
+**Explore first, then ask structured questions with repo-informed
+defaults.** The user never sees a blank interrogation. Read the code
+before the first question so every option you offer corresponds to a file
+or command that actually exists in this repo. Use one `AskUserQuestion`
+call with all four questions so the user answers them together. The only
+follow-up is a single open "anything I misread?" prompt after the
+proposal.
 
-## Phase 1 — analyze & propose
+## Phase 1 — explore & ask
 
-1. **Inventory the repo.** `ls -la` at root. Read `README*`,
-   `pyproject.toml` / `package.json`, any `Makefile`, existing entrypoints.
-   `git log --oneline -n 20`. Scan for: entrypoint scripts, metric-producing
-   code, data/eval splits, existing test/bench harnesses. Cap at ~15 files.
+1. **Inventory the repo BEFORE asking anything.** `ls -la` at root. Read
+   `README*`, `pyproject.toml` / `package.json`, any `Makefile`, existing
+   entrypoints. `git log --oneline -n 20`. Scan for: entrypoint scripts,
+   metric-producing code, data/eval splits, existing test/bench harnesses,
+   known auxiliary integrations (W&B, MLflow, DVC, TensorBoard, Slack
+   hooks). Cap at ~15 files. Do not call `AskUserQuestion` before this
+   step completes — options must reflect real files/commands found here.
 
-2. **Print one proposal block:**
+2. **Ask four structured questions** in a single `AskUserQuestion` call.
+   Each question's options should be grounded in the inventory; include
+   2–4 concrete options plus always-available "Other" (auto-provided).
+   Recommend the closest option by putting it first and suffixing
+   "(Recommended)".
+
+   - **Q1 — target + objective.** "Which file(s) should the loop
+     optimize, and what is the objective?" Options derived from found
+     entrypoints (e.g. `train.py`, `src/api/search.py`,
+     `prompts/assistant.md`). Each option must name concrete paths and a
+     direction (min/max on a scalar). If nothing plausible exists, one
+     option must be "Scaffold a new <kind>".
+   - **Q2 — eval flow.** "What eval flow should run each iteration?"
+     Options are **high-level flows**, not literal commands:
+     *single command prints metric as last line*, *multi-step pipeline
+     (build → run → judge → extract)*, *existing test/bench harness emits
+     the number*, *LLM-judge on an artifact*. Pick options consistent
+     with what the repo already has.
+   - **Q3 — research context.** "What domain context / hard constraints
+     should I record in `context.md`?" Options:
+     *paste constraints inline now* (user types them as free text),
+     *reference file(s) in the repo* (user lists paths to read),
+     *use README + existing docs only*, *minimal — objective + timeout
+     only*. This answer can be a simple string OR a set of paths.
+   - **Q4 — auxiliary tools** (`multiSelect: true`). "Which auxiliary
+     tools should I wire into `auxiliary.md`? These must NOT affect the
+     optimization itself — only logging, visualization, or cycle speed."
+     Options drawn from the relevant ecosystem, e.g. for ML:
+     *Weights & Biases*, *MLflow*, *TensorBoard (local)*, *DVC*; for API
+     work: *Grafana/Prometheus*, *OpenTelemetry*; for prompt eval:
+     *promptfoo dashboard*, *Braintrust*. Always include *None*.
+
+3. **Fold answers into one proposal block and print it:**
    - **Project** — 2–4 sentences on what this repo does.
-   - **Proposed target** — one file (or small set) the agent will edit.
-     Justify in one sentence. If the target doesn't exist yet, mark "will
-     scaffold in phase 2".
+   - **Proposed target** — paths from Q1 + justification. If the target
+     doesn't exist yet, mark "will scaffold in phase 2".
    - **Proposed metric** — `name`, `direction: min|max`,
      `source: human|code|llm-judge`, `parse_method`. **Must be scalar.**
-   - **Proposed eval** — the shell command. If multi-step, sketch the
-     pipeline.
+   - **Proposed eval** — the shell command implementing the Q2 flow. If
+     multi-step, sketch the pipeline.
    - **Proposed one-time bootstrap** — bullet list of everything that
      should run **exactly once** and then freeze. Examples by domain:
      - *ML training*: download dataset, tokenize, cache splits, download
@@ -47,16 +85,20 @@ question after it is "what other context should I know?".
        binaries, render a reference screenshot for the judge.
      Mark each as "needed" or "skip — none apply".
    - **Proposed budget** — `timeout_sec` inferred from eval shape.
+   - **Proposed context** — how Q3's answer will be recorded (verbatim
+     paste, list of files to summarize, or README pointer).
+   - **Proposed auxiliary** — Q4 selections with API-key placeholders
+     that will land in `auxiliary.md`.
    - **Assumptions** — 2–5 bullets (hardware, dataset, eval fidelity).
    - **Open questions** — 0–3 specific questions.
 
-3. **Ask once:**
-   > "Any additional context, constraints, or corrections? (hardware, hard
-   > rules, things to avoid, scope limits, things I misread)"
+4. **Ask once, free-form:**
+   > "Any corrections before I scaffold? (hardware, hard rules, things
+   > to avoid, scope limits, anything I misread)"
 
    Wait. `none` is valid.
 
-4. **Fold the reply into the proposal.** Reprint changed lines. Do not
+5. **Fold the reply into the proposal.** Reprint changed lines. Do not
    advance while open questions remain.
 
 ## Phase 2 — scaffold
