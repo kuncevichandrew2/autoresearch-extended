@@ -44,28 +44,19 @@ autoresearch/
 └── workbench/                      # main scratchpad
 ```
 
-**Size rule.** Every mutable `.md` stays under ~400 lines (one Read window). As it approaches the cap, main compresses: trim old ATLAS bullets, collapse stale FACTS/LEADS entries into one-liners, promote a recurring topic into `knowledge/<topic>.md`. Write-once notes (`experiments/NNN-*.md`, `research/NNN-*.md`) are never touched.
+**Size rule.** Every mutable `.md` stays under ~400 lines (one Read window). As it approaches the cap, main compresses: trim stale ATLAS prose, collapse older FACTS/LEADS entries into one-liners, promote a recurring topic into `knowledge/<topic>.md`. Write-once notes (`experiments/NNN-*.md`, `research/NNN-*.md`) are never touched.
 
-### FACTS / LEADS / ATLAS sections
+### ATLAS / FACTS / LEADS
 
-**FACTS.md** (accretes, confirmed by experiment):
-- **Established** — claims promoted by a keep-experiment; each cites `exp/NNN`.
-- **Dead ends** — recurring failures; append-only, dedup by substring.
-- **Decisions** — one-line changelog (integrations, pauses, policy choices).
-- **Anti-cheat log** — TSV/report mismatches, foreign writes, integrity events.
+Three files with different dynamics and **no prescribed section structure**. Main gets a description of each file's purpose and decides what to write, when to add a heading, when to reorganise. The files are prose, not schemas.
 
-**LEADS.md** (churns, reworked as claims are confirmed/refuted; aggregates information from researcher reports):
-- **Emerging** — tentative claims from research, waiting on experimental confirmation.
-- **Domain context** — aggregated knowledge from researcher.
-- **Open questions** — questions that haven't crystallised into a hypothesis yet.
-- **Heuristics** — speculative patterns ("looks like X correlates with Y").
+**ATLAS.md** — a running summary of *this* autoresearch: the current best metric + commit, which sub-agents are running, active flags (e.g. `paused`, `recommend_resetup`), and whatever short context describes "where the loop is right now". Overwritten as state moves; nothing load-bearing lives here.
 
-**ATLAS.md** (rewrites, snapshot, nothing load-bearing):
-- **Now** — current best (metric, exp id, commit), running sub-agents, flags `paused` / `recommend_resetup`.
-- **Recent signal** — ring buffer of the 5 latest integration events.
-- **Hot topics** — 2–4 top tags by activity across backlog + last 10 experiments.
+**FACTS.md** — the agent's accumulated experience. Everything that has been **confirmed**: claims promoted by `keep` experiments (citing `exp/NNN`), recurring dead ends worth remembering, integration decisions, integrity events. Written to mainly after integrating experimenter returns. Accretes over time.
 
-> **In short.** ATLAS = what is now, decays. FACTS = what is proven, accretes. LEADS = what was read and suspected, reworked. Each has its own aging dynamic. The starter section set is not closed — main freely introduces emergent sections (Invariants, Calibrations, …) when they help.
+**LEADS.md** — ideas and threads surfaced by researcher: tentative claims awaiting experimental confirmation, domain context, open questions, speculative patterns. Connected to `knowledge/<topic>.md` — a lead that turns into something load-bearing may graduate there. Reworked as claims are confirmed or refuted.
+
+> Main introduces headings, subsections, and callouts when they help, and drops them when they stop helping. Whatever shape the material wants.
 
 ### CONFIG.md — frozen contract
 
@@ -249,17 +240,17 @@ Common style: briefs are self-contained (no back-asks); the report is insights f
 - **D · Research context.** Domain · known ceilings / SOTA · prior art · constraints.
 - **E · Integrations.** Grep for W&B, MLflow, Docker, LLM judges. One AskUserQuestion call with one sub-question per detected integration (max 4): scope + env vars + health command.
 
-**Step 3. Scaffold.** Build the tree under `autoresearch/`. Write CONFIG.md from Step 2 answers. Create TSVs with headers only. Write FACTS.md and LEADS.md with empty sections. Seed backlog with 2–4 `hypothesis/pending` rows + 1–3 `deferred/pending`. Copy this skill's `agents/experimenter.md` and `agents/researcher.md` into the project's agent directory — `.claude/agents/` for Claude Code, `.codex/agents/`, `.gemini/agents/`, … depending on the provider. Adapt only Mission and Common failure modes to the domain. Do not touch frontmatter, the Protocol section, or the schemas.
+**Step 3. Scaffold.** Build the tree under `autoresearch/`. Write CONFIG.md from Step 2 answers. Create TSVs with headers only. Write FACTS.md, LEADS.md, and ATLAS.md each as a short file — just a one-line description of its purpose so main knows what goes where. No prescribed sections. Seed backlog with 2–4 `hypothesis/pending` rows + 1–3 `deferred/pending`. Copy this skill's `agents/experimenter.md` and `agents/researcher.md` into the project's agent directory — `.claude/agents/` for Claude Code, `.codex/agents/`, `.gemini/agents/`, … depending on the provider. Adapt only Mission and Common failure modes to the domain. Do not touch frontmatter, the Protocol section, or the schemas.
 
 ### Phase 2 — Prepare
 
-Write `bootstrap.sh` (or `bootstrap.md` for multi-script / computer-use / manual-auth setups) — idempotent, rerunnable, artifacts in `.gitignore`. Before any download > 100 MB or write to a shared system — confirm with the user. Run until exit 0. Run the health check of each integration. Append `YYYY-MM-DD — integrations verified: <names>` to FACTS.md Decisions.
+Write `bootstrap.sh` (or `bootstrap.md` for multi-script / computer-use / manual-auth setups) — idempotent, rerunnable, artifacts in `.gitignore`. Before any download > 100 MB or write to a shared system — confirm with the user. Run until exit 0. Run the health check of each integration. Record `YYYY-MM-DD — integrations verified: <names>` in FACTS.md.
 
 ### Phase 3 — Baseline
 
 Dispatch experimenter against the unmodified target. Brief: experiment 000, slug `baseline`, no hypothesis, no change plan; worktree `../autoresearch-wt/exp-000-baseline`, branch `exp/000-baseline` off HEAD; `eval / parse / timeout / direction / seed policy / custom columns` from CONFIG; current best = NaN. Main creates the worktree before dispatch. Experimenter skips commit A (no change plan → no edit), runs the eval, writes row 000 and `000-baseline.md`, makes commit B `"exp 000: baseline"`. Main fast-forwards into `main`.
 
-Initialise ATLAS Now with `000` as best; prepend `000` to Recent signal.
+Update ATLAS to reflect `000` as the current best and the loop's starting state.
 
 If the metric is NaN — iterate over `eval_command` / `parse_method` / `timeout_sec`. CONFIG stays editable until row 000 parses. Once it does — CONFIG and bootstrap **freeze**.
 
@@ -343,7 +334,7 @@ Cheap disk check, not a gate:
 
 1. `tail -1 <referenced_tsv>` starts with the reported id.
 2. If the status implies a note — the file exists on disk.
-3. Mismatch → trust the TSV, log to FACTS Anti-cheat log (`YYYY-MM-DD — <id> report/tsv mismatch, trusting TSV`), skip integration for this return.
+3. Mismatch → trust the TSV, record the incident in FACTS (`YYYY-MM-DD — <id> report/tsv mismatch, trusting TSV`), skip integration for this return.
 
 ### Integration by return type
 
@@ -355,7 +346,7 @@ git worktree remove ../autoresearch-wt/exp-NNN-<slug>
 git branch -d exp/NNN-<slug>
 ```
 
-Then: promote the matching bullet from LEADS Emerging into FACTS Established, citing `exp/NNN`; mark the backlog row `consumed/keep`; update ATLAS Now with the new best; prepend to Recent signal.
+Then: move the matching claim from LEADS into FACTS, citing `exp/NNN`; mark the backlog row `consumed/keep`; update ATLAS with the new best and whatever short signal is worth keeping.
 
 **discard / crash / timeout:** the code change must *not* reach main, only the record commit.
 
@@ -365,11 +356,11 @@ git worktree remove ../autoresearch-wt/exp-NNN-<slug>
 git branch -D exp/NNN-<slug>
 ```
 
-Close the backlog row with `outcome=<status>`; note the attempt in ATLAS Recent signal. A recurring pattern → an entry in FACTS Dead ends.
+Close the backlog row with `outcome=<status>`; reflect the attempt in ATLAS. A recurring failure pattern is worth capturing in FACTS so future dispatches don't re-run it.
 
-**invalid**: cherry-pick the record commit if there is one; otherwise just drop the worktree. Close backlog `outcome=invalid`. Two consecutive invalids → `recommend_resetup=true` in ATLAS Now, pause experimenter dispatch; researchers keep going.
+**invalid**: cherry-pick the record commit if there is one; otherwise just drop the worktree. Close backlog `outcome=invalid`. Two consecutive invalids → set `recommend_resetup=true` in ATLAS, pause experimenter dispatch; researchers keep going.
 
-**Research deep-research / broader-tooling / exploration**: hypotheses → backlog as pending `H-NNN`; supported claims → LEADS Emerging or Domain context. Exploration findings in particular land in LEADS Domain context even without a hypothesis — that's the point of the type.
+**Research deep-research / broader-tooling / exploration**: hypotheses → backlog as pending `H-NNN`; supported claims and context → LEADS. Exploration findings in particular land in LEADS even without a hypothesis — that's the point of the type.
 
 **Research analysis**: apply the Recommendations section to FACTS / LEADS / backlog mechanically.
 
@@ -377,15 +368,15 @@ Close the backlog row with `outcome=<status>`; note the attempt in ATLAS Recent 
 
 Log, recover, keep going. Escalate only when the loop can't move.
 
-- **TSV/report mismatch** → trust the TSV, log to FACTS Anti-cheat, skip.
-- **Two consecutive invalids** → `recommend_resetup=true`, pause experimenter.
+- **TSV/report mismatch** → trust the TSV, record the incident in FACTS, skip.
+- **Two consecutive invalids** → `recommend_resetup=true` flag in ATLAS, pause experimenter.
 - **ff-only conflict** (shouldn't happen at concurrency=1) → abort, pause, notify the user.
-- **Foreign write by a sub-agent** → `git checkout HEAD -- <path>`, log in Anti-cheat, flag the agent template for review.
+- **Foreign write by a sub-agent** → `git checkout HEAD -- <path>`, record the incident in FACTS, flag the agent template for review.
 - **Orphan worktree** after a failed integration → `git worktree remove --force` + `git branch -D`, reconstruct state from the TSV.
 
 ### Stopping
 
-Only on user interrupt: write `paused` into ATLAS Now, let running sub-agents finish, integrate their returns, stop.
+Only on user interrupt: set `paused` in ATLAS, let running sub-agents finish, integrate their returns, stop.
 
 ### Re-setup
 

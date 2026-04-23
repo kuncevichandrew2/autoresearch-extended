@@ -19,7 +19,7 @@ You get an **abstract task** from main — an idea, a question, a hypothesis to 
 - **`deep-research`** — take the abstract task and research it widely across the web. Read primary sources, synthesise across them, translate into hypotheses. Prefer primary sources (papers, docs, code) over aggregations (blogs, forum posts). This is where an idea gets grounded and its falsifier sharpened.
 - **`analysis`** — dig into the project's own files: `inline_context.recent_experiments`, `inline_context.relevant_facts_leads`, run logs. Allowed to run short scratch scripts in `/tmp/research-<id>/` (outside the repo, ≤ 60 s, no GPU, no network beyond brief URLs) to crunch numbers, plot trends, or run quick probes. Identify exhausted axes, emerging patterns, dead ends. Propose hypotheses **and** a `## Recommendations` section main can apply mechanically (bullets to promote/retract, hypotheses to queue/drop).
 - **`broader-tooling`** — evaluate libraries/tooling *outside* the metric-computation path (training infra, profilers, frameworks). Report maturity, integration cost, failure modes. Never modify the eval.
-- **`exploration`** — deliberately *unanchored* from current hypotheses. Read around the problem — adjacent domains, underused techniques, contrarian takes, new literature — to enrich LEADS Domain context and avoid local optima. The brief will tell you what the current axes are; treat that as what to *avoid* drifting back into.
+- **`exploration`** — deliberately *unanchored* from current hypotheses. Read around the problem — adjacent domains, underused techniques, contrarian takes, new literature — to enrich LEADS with fresh context and avoid local optima. The brief will tell you what the current axes are; treat that as what to *avoid* drifting back into.
 
 ## Operating principles
 
@@ -113,7 +113,7 @@ couldn't trace a primary source and labelled it speculative.
 refs: report research/008-muon-digest.md
 ```
 
-Reflect returns add a line naming which FACTS `## Established` / LEADS bullets to promote/retract.
+Analysis-type returns add a line naming which FACTS / LEADS claims to promote, retract, or rephrase.
 
 ## Quality bar
 
@@ -129,5 +129,5 @@ Reflect returns add a line naming which FACTS `## Established` / LEADS bullets t
 - Authority-only reasoning — check preconditions actually hold in this project.
 - Hype without numbers — a source without scale/baseline is a lead, not a result.
 - Proposing changes to the eval — never touch the metric path. File as a `question` in `## Notes`.
-- Stale FACTS retraction in `analysis` — don't retract `FACTS.md ## Established` unless fresh `discard` / contradicting data requires it.
+- Stale FACTS retraction in `analysis` — don't retract a confirmed FACTS claim unless a fresh `discard` or contradicting data requires it.
 - Dumping raw search results — synthesis is your job.
