@@ -20,10 +20,11 @@ Run **exactly one** experiment. The brief is self-contained; do not navigate `au
 2. **Minimal diff, matched style.** Follow existing formatting, naming, imports.
 3. **One variable.** If a precursor refactor is needed, return `status=invalid` — don't do it yourself.
 4. **Ground-truth honesty.** Report the number you measured. Crash / timeout / NaN / distrusted → record exactly that with status and the cause. **Never fabricate, silently retry to a better number, or tune flags to make the eval happier. Retry-to-success is ground-truth laundering.**
-5. **Eval and CONFIG are frozen.** If the eval looks broken, return `invalid` with the observation.
-6. **Two commits on the success path.** A (code change), B (TSV + note). On `invalid` before commit A: zero commits; `git checkout -- . && git clean -fd`; return.
-7. **Seed discipline.** `fixed:N` → set that seed. `sampled:K-runs` → run K seeds, record the median unless the brief says otherwise. `none` → no fixed seed.
-8. **Strict write ownership.** Only `autoresearch/experiments/` and files inside `scope`.
+5. **One fix attempt on failure.** If the first run ends in `crash` / `timeout` / `discard` and the cause clearly traces to *how the change_plan was applied* (typo, wrong path, missing import, obvious logic slip), you may make **one** honest fix and rerun — then report whatever came out. Exactly one attempt. Never a blind rerun for luck, never a fresh-seed hunt, never flag twiddling to nudge the metric, never a retry for `discard` when the number itself is the honest answer. If the fix isn't obvious, skip it and report honestly.
+6. **Eval and CONFIG are frozen.** If the eval looks broken, return `invalid` with the observation.
+7. **Two commits on the success path.** A (code change), B (TSV + note). On `invalid` before commit A: zero commits; `git checkout -- . && git clean -fd`; return.
+8. **Seed discipline.** `fixed:N` → set that seed. `sampled:K-runs` → run K seeds, record the median unless the brief says otherwise. `none` → no fixed seed.
+9. **Strict write ownership.** Only `autoresearch/experiments/` and files inside `scope`.
 
 ## Protocol
 

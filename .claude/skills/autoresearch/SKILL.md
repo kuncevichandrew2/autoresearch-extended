@@ -14,12 +14,13 @@ Only `status=keep` on an experiment promotes a claim from LEADS.md (leads from r
 ## Principles
 
 1. **Binary keep/discard on one scalar.** Keep if it beats the current best in the configured direction (min or max). Otherwise revert.
-2. **Two layers: target vs. contract.** The only thing that changes each iteration is the **target** (files listed in `CONFIG.scope`) — that's the whole point of the loop. Everything else — the metric, the eval command, bootstrap, scope itself — is the **contract**, captured in `CONFIG.md`, and is strictly off-limits after baseline parses. Touching the contract requires re-setup.
+2. **Frozen contract.** After baseline parses, `CONFIG.md` and `bootstrap.{sh,md}` freeze — the metric, eval command, and scope definition don't change. (Target files under `CONFIG.scope` and main's own state — ATLAS/FACTS/LEADS/backlog — keep writing freely; this is about the contract, not all writes.)
 3. **Experiments are truth, research is advisory.** Only `keep` promotes a bullet from LEADS to FACTS.
 4. **Sub-agents stay in their lane.** Each sub-agent only touches files inside its area: researcher writes to `research/`; experimenter writes to `experiments/` and to target files inside `CONFIG.scope`. Main writes everywhere else. Reads are universal.
 5. **Worktree isolation.** Every experiment lives in its own git worktree on branch `exp/NNN-<slug>`. On keep — fast-forward merge. On anything else — cherry-pick only the record commit, no code.
 6. **Surgical edits.** Every changed line traces to the hypothesis. No drive-by cleanup.
 7. **Autonomous until stopped.** After setup, main never asks "continue?".
+8. **User interrupts are first-class.** A question or quick ask from the user mid-loop (a plot, a diff, a sanity check) is handled inline — do it, then resume dispatching without asking for permission. Running sub-agents keep running in parallel while main handles the ask.
 
 ---
 
@@ -148,11 +149,12 @@ delta: <signed | NaN>
 
 ```
 id	type	date	report	one_line
-R-008	digest	2026-04-20	research/008-muon-digest.md	Muon optimizer; H-019, H-020
-R-009	reflect	2026-04-22	research/009-reflect-cycle-42.md	reflect after 10 exps; H-021 added
+R-008	deep-research	2026-04-20	research/008-muon-digest.md	Muon optimizer; H-019, H-020
+R-009	analysis	2026-04-22	research/009-analysis-cycle-42.md	analysis after 10 exps; H-021 added
+R-010	exploration	2026-04-24	research/010-exploration-distill.md	distillation literature; adjacent to current axis
 ```
 
-`type` ∈ {digest, sweep, eda, broader-tooling, reflect}.
+`type` ∈ {deep-research, analysis, broader-tooling, exploration}.
 
 ### research/NNN-<slug>.md — session digest
 
@@ -164,7 +166,7 @@ Mostly free-form prose, focused on the topic from the brief. Required scaffoldin
 ---
 id: R-NNN
 slug: <slug>
-type: digest | sweep | eda | broader-tooling | reflect
+type: deep-research | analysis | broader-tooling | exploration
 date: <YYYY-MM-DD>
 trigger: <backlog id or prompt>
 ---
@@ -185,9 +187,9 @@ what surprised you. Organise however the material wants to be organised.
 - …
 
 Log every load-bearing source. Skip obvious junk, but err on the side of
-logging — future reflect passes will thank you.
+logging — future analysis passes will thank you.
 
-## Recommendations   # type=reflect only
+## Recommendations   # type=analysis only
 ## Notes            # caveats, dead ends, things flagged speculative
 ```
 
@@ -207,17 +209,18 @@ Default: backlog (`kind=hypothesis`) → researcher (ground it, tighten the fals
 
 ## Sub-agent protocols
 
-Full protocols live in `agents/experimenter.md` and `agents/researcher.md` (copied during setup into the project's `.claude/agents/` as `experimenter.md` and `researcher.md`; only Mission and Common failure modes are adapted — everything else is left untouched). Below is only goals and key guardrails.
+Full protocols live in `agents/experimenter.md` and `agents/researcher.md` (copied during setup into the project's agent directory — `.claude/agents/` for Claude Code, `.codex/agents/`, `.gemini/agents/`, etc. depending on provider — as `experimenter.md` and `researcher.md`; only Mission and Common failure modes are adapted — everything else is left untouched). Below is only goals and key guardrails.
 
-**experimenter** — a disciplined senior engineer. Goal: exactly one experiment, end-to-end. Enters a worktree pre-created by main on branch `exp/NNN-<slug>`, applies the change_plan (minimal diff, one variable, nothing outside scope), runs the eval with a timeout, parses the metric, decides `keep/discard/crash/timeout/invalid`, makes two commits (A: code, B: TSV + note), returns a compact report. **The recorded number is ground truth:** no fabrication, no retry-to-success, no best-of-N, no silent flag twiddling. Writes only to `autoresearch/experiments/` and target files inside scope. On `keep`/`invalid` writes a note; on `discard/crash/timeout` — no note. Details in `agents/experimenter.md`.
+**experimenter** — a disciplined senior engineer. Goal: exactly one experiment, end-to-end. Enters a worktree pre-created by main on branch `exp/NNN-<slug>`, applies the change_plan (minimal diff, one variable, nothing outside scope), runs the eval with a timeout, parses the metric, decides `keep/discard/crash/timeout/invalid`, makes two commits (A: code, B: TSV + note), returns a compact report. **The recorded number is ground truth:** no fabrication, no retry-to-success, no best-of-N, no silent flag twiddling. Writes only to `autoresearch/experiments/` and target files inside scope. On `keep`/`invalid` writes a note; on `discard/crash/timeout` — no note.
 
-**researcher** — a PhD-level collaborator. Goal: exactly one research task of one of these types:
+**One fix attempt.** On `crash` / `timeout` / `discard`, before reporting, experimenter may make **one** honest fix attempt — but only when the failure clearly traces to how the change_plan was applied (typo, wrong path, wrong call site, missing import). Never a blind rerun, never a fresh-seed hunt, never flag twiddling to nudge the metric. If the second attempt fails too, report honestly; if discard reflects a real metric, no retry — record it. Details in `agents/experimenter.md`.
 
-- **digest** — one source, deep read.
-- **sweep** — 3–5 targeted queries, synthesis; primary sources preferred over aggregations.
-- **eda** — short scripts in `/tmp/research-<id>/` (outside the repo), ≤ 60 s, no GPU, no network beyond URLs from the brief.
-- **broader-tooling** — evaluate tools outside the metric path; never modifies the eval.
-- **reflect** — analyse recent experiments + FACTS/LEADS → hypotheses + a `## Recommendations` section that main applies mechanically.
+**researcher** — a PhD-level collaborator. Gets an abstract task / idea / hypothesis. Goal: exactly one research task of one of these types:
+
+- **deep-research** — take the abstract task and research it widely. Read primary sources across the web, synthesise, propose sharper hypotheses. This is where an idea gets grounded and its falsifier sharpened.
+- **analysis** — dig into the project's own files: recent experiments, FACTS/LEADS, run logs. Allowed to run short scratch scripts in `/tmp/research-<id>/` (≤ 60 s, no GPU, no network). Identifies exhausted axes, emerging patterns, dead ends. Produces `## Recommendations` main applies mechanically (bullets to promote/retract, hypotheses to queue/drop).
+- **broader-tooling** — evaluate tools or libraries *outside* the metric-computation path (training infra, profilers, new frameworks). Maturity, integration cost, failure modes. Never modifies the eval.
+- **exploration** — deliberately *unanchored* from current hypotheses. Read around the problem — adjacent domains, underused techniques, new literature, contrarian takes — to enrich LEADS Domain context and avoid getting stuck in local optima. Main queues these periodically so the loop isn't just exploiting recent ideas.
 
 Proposes 1–3 hypotheses with a **numeric** falsifier, target files, predicted magnitude. Cites load-bearing claims. Writes only to `research/` (plus `/tmp/research-<id>/` scratch). Never edits `experiments.tsv`, CONFIG, target files, the eval, FACTS.md, LEADS.md, or backlog.tsv. Details in `agents/researcher.md`.
 
@@ -246,7 +249,7 @@ Common style: briefs are self-contained (no back-asks); the report is insights f
 - **D · Research context.** Domain · known ceilings / SOTA · prior art · constraints.
 - **E · Integrations.** Grep for W&B, MLflow, Docker, LLM judges. One AskUserQuestion call with one sub-question per detected integration (max 4): scope + env vars + health command.
 
-**Step 3. Scaffold.** Build the tree under `autoresearch/`. Write CONFIG.md from Step 2 answers. Create TSVs with headers only. Write FACTS.md and LEADS.md with empty sections. Seed backlog with 2–4 `hypothesis/pending` rows + 1–3 `deferred/pending`. Copy this skill's `agents/experimenter.md` and `agents/researcher.md` into the project's `.claude/agents/`; adapt only Mission and Common failure modes to the domain. Do not touch frontmatter, the Protocol section, or the schemas.
+**Step 3. Scaffold.** Build the tree under `autoresearch/`. Write CONFIG.md from Step 2 answers. Create TSVs with headers only. Write FACTS.md and LEADS.md with empty sections. Seed backlog with 2–4 `hypothesis/pending` rows + 1–3 `deferred/pending`. Copy this skill's `agents/experimenter.md` and `agents/researcher.md` into the project's agent directory — `.claude/agents/` for Claude Code, `.codex/agents/`, `.gemini/agents/`, … depending on the provider. Adapt only Mission and Common failure modes to the domain. Do not touch frontmatter, the Protocol section, or the schemas.
 
 ### Phase 2 — Prepare
 
@@ -258,7 +261,7 @@ Dispatch experimenter against the unmodified target. Brief: experiment 000, slug
 
 Initialise ATLAS Now with `000` as best; prepend `000` to Recent signal.
 
-If the metric is NaN — iterate over `eval_command` / `parse_method` / `timeout_sec`. CONFIG stays editable until row 000 parses. Once it does — CONFIG and bootstrap **freeze**; any further change ⇒ re-setup.
+If the metric is NaN — iterate over `eval_command` / `parse_method` / `timeout_sec`. CONFIG stays editable until row 000 parses. Once it does — CONFIG and bootstrap **freeze**.
 
 ### Phase 4 — Loop
 
@@ -283,13 +286,32 @@ git worktree add ../autoresearch-wt/exp-NNN-<slug> -b exp/NNN-<slug> <parent_com
 
 `worktree_path` and `branch` go in the brief; the sub-agent `cd`s into it and works there.
 
+### User interrupts (handled inline)
+
+If the user interjects mid-loop — a question, a request for a plot, a quick edit somewhere unrelated — main handles it inline and resumes dispatching without asking for permission. Running sub-agents keep running in background. Example flow:
+
+```
+main dispatches exp 042 (experimenter running in background)
+  ↓
+user: "plot the loss curve for the last 30 experiments"
+  ↓
+main reads experiments.tsv, writes workbench/loss-plot.py, runs it,
+shows the plot path — while exp 042 keeps running
+  ↓
+user sees the plot, says nothing further
+  ↓
+main goes straight back to the dispatch/integrate cycle
+```
+
+No "should I continue?" question. The loop is the default state; user asks are a higher-priority task that preempt nothing on the sub-agent side.
+
 ### Delegation (main → sub-agent): task brief
 
-Prose, self-contained. Write it like a short message to a colleague: say what needs to happen, and give concrete facts the sub-agent couldn't guess. Include detail only when omitting it would force guessing.
+Prose, self-contained. Write it like a short message to a colleague: say what needs to happen, and give concrete facts the sub-agent couldn't guess. Briefs can run long — err on the side of over-specifying. The sub-agent has no session context, so spelling out background, pitfalls, scope boundaries, and edge cases up front is far cheaper than debugging a misunderstanding after the fact. Detailed step-by-step instructions are fine; treat the brief as a mini-spec, not a tweet.
 
 **experimenter brief** must contain: the hypothesis (one or two sentences with a direction and a **numeric** falsifier); the change plan (file paths with line numbers where it matters, exact values); worktree path + branch + parent commit; scope (subset of `CONFIG.scope`); eval + parse + timeout; direction + current best; seed policy; paths for the TSV row and the note; `custom_tsv_columns` in order.
 
-**researcher brief** must contain: a one-sentence task; `type` (digest / sweep / eda / broader-tooling / reflect); `trigger` (backlog id or prompt); research id + slug. Inline context that saves re-reading: relevant recent experiments, specific bullets from FACTS/LEADS, URLs / arxiv ids / file paths. For `reflect`: inline the last N experiments and the relevant FACTS/LEADS slice. Paths for the TSV row and the report.
+**researcher brief** must contain: the task (often abstract — an idea, a question, a hypothesis to ground); `type` (deep-research / analysis / broader-tooling / exploration); `trigger` (backlog id or prompt); research id + slug. Inline context that saves re-reading: relevant recent experiments, specific bullets from FACTS/LEADS, URLs / arxiv ids / file paths. For `analysis`: inline the last N experiments and the relevant FACTS/LEADS slice. For `exploration`: say what the current axes are so researcher knows what to *avoid* drifting back into. Paths for the TSV row and the report.
 
 ### Return (sub-agent → main): compact report
 
@@ -347,9 +369,9 @@ Close the backlog row with `outcome=<status>`; note the attempt in ATLAS Recent 
 
 **invalid**: cherry-pick the record commit if there is one; otherwise just drop the worktree. Close backlog `outcome=invalid`. Two consecutive invalids → `recommend_resetup=true` in ATLAS Now, pause experimenter dispatch; researchers keep going.
 
-**Research digest / sweep / eda / broader-tooling**: hypotheses → backlog as pending `H-NNN`; supported claims → LEADS Emerging or Domain context.
+**Research deep-research / broader-tooling / exploration**: hypotheses → backlog as pending `H-NNN`; supported claims → LEADS Emerging or Domain context. Exploration findings in particular land in LEADS Domain context even without a hypothesis — that's the point of the type.
 
-**Research reflect**: apply the Recommendations section to FACTS / LEADS / backlog mechanically.
+**Research analysis**: apply the Recommendations section to FACTS / LEADS / backlog mechanically.
 
 ### When something goes wrong
 
