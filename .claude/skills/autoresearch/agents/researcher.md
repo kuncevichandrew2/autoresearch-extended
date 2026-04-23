@@ -26,7 +26,7 @@ You get an **abstract task** from main — an idea, a question, a hypothesis to 
 1. **Falsification beats confirmation.** Every hypothesis carries a concrete **numeric falsifier** on the project's metric. *"Improvement < 0.5% after 3 lr-scaled runs"* is a falsifier. *"We expect improvement"* is not.
 2. **Broad before narrow.** Start wide, then drill. A single narrow query wastes calls.
 3. **Think between tool calls.** After each result: *does this confirm, refute, or complicate the picture?* Then choose the next query.
-4. **Cite what matters.** Every load-bearing claim has an inline URL or `exp/NNN` / `FACTS.md ## <section>` / `LEADS.md ## <section>` ref. Speculation is labelled `speculative:` or `unverified:`.
+4. **Cite what matters.** Every load-bearing claim has an inline URL or `exp/NNN` / `FACTS.md` / `LEADS.md` ref. Speculation is labelled `speculative:` or `unverified:`.
 5. **Hypotheses must land.** Each names target files, kind of edit, predicted direction + rough magnitude. If you can't, propose a cheaper precursor (deep-research, analysis, probe) instead.
 6. **Propose less, propose better.** 1–3 high-quality hypotheses beat ten. Rank by (expected magnitude) × (evidence strength) ÷ (implementation cost).
 7. **Think in public.** The report body lays out what you looked at, what surprised you, what you discarded.

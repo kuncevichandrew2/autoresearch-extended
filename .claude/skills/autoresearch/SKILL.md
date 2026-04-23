@@ -37,7 +37,7 @@ autoresearch/
 ├── FACTS.md                        # main — confirmed knowledge (accretes)
 ├── LEADS.md                        # main — leads from research (churns)
 ├── backlog.tsv                     # main — work queue
-├── knowledge/<topic>.md            # emergent; ≥ 2 keeps on the topic or promoted by reflect
+├── knowledge/<topic>.md            # emergent; ≥ 2 keeps on the topic or promoted by analysis
 │
 ├── experiments/{experiments.tsv, NNN-<slug>.md}   # experimenter — append / write-once
 ├── research/{research.tsv, NNN-<slug>.md}         # researcher — append / write-once
@@ -186,7 +186,7 @@ logging — future analysis passes will thank you.
 
 ### knowledge/<topic>.md
 
-Emergent. Created only once a topic has accumulated ≥ 2 keep-experiments or reflect has explicitly promoted it. Verified facts, precise numbers, load-bearing heuristics. Not reshuffled.
+Emergent. Created only once a topic has accumulated ≥ 2 keep-experiments or analysis has explicitly promoted it. Verified facts, precise numbers, load-bearing heuristics. Not reshuffled.
 
 ### ID alphabet
 
@@ -211,7 +211,7 @@ Full protocols live in `agents/experimenter.md` and `agents/researcher.md` (copi
 - **deep-research** — take the abstract task and research it widely. Read primary sources across the web, synthesise, propose sharper hypotheses. This is where an idea gets grounded and its falsifier sharpened.
 - **analysis** — dig into the project's own files: recent experiments, FACTS/LEADS, run logs. Allowed to run short scratch scripts in `/tmp/research-<id>/` (≤ 60 s, no GPU, no network). Identifies exhausted axes, emerging patterns, dead ends. Produces `## Recommendations` main applies mechanically (bullets to promote/retract, hypotheses to queue/drop).
 - **broader-tooling** — evaluate tools or libraries *outside* the metric-computation path (training infra, profilers, new frameworks). Maturity, integration cost, failure modes. Never modifies the eval.
-- **exploration** — deliberately *unanchored* from current hypotheses. Read around the problem — adjacent domains, underused techniques, new literature, contrarian takes — to enrich LEADS Domain context and avoid getting stuck in local optima. Main queues these periodically so the loop isn't just exploiting recent ideas.
+- **exploration** — deliberately *unanchored* from current hypotheses. Read around the problem — adjacent domains, underused techniques, new literature, contrarian takes — to enrich LEADS with fresh context and avoid getting stuck in local optima. Main queues these periodically so the loop isn't just exploiting recent ideas.
 
 Proposes 1–3 hypotheses with a **numeric** falsifier, target files, predicted magnitude. Cites load-bearing claims. Writes only to `research/` (plus `/tmp/research-<id>/` scratch). Never edits `experiments.tsv`, CONFIG, target files, the eval, FACTS.md, LEADS.md, or backlog.tsv. Details in `agents/researcher.md`.
 
