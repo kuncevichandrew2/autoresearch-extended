@@ -248,7 +248,7 @@ Write `bootstrap.sh` (or `bootstrap.md` for multi-script / computer-use / manual
 
 ### Phase 3 — Baseline
 
-Dispatch experimenter against the unmodified target. Brief: experiment 000, slug `baseline`, no hypothesis, no change plan; worktree `../autoresearch-wt/exp-000-baseline`, branch `exp/000-baseline` off HEAD; `eval / parse / timeout / direction / seed policy / custom columns` from CONFIG; current best = NaN. Main creates the worktree before dispatch. Experimenter skips commit A (no change plan → no edit), runs the eval, writes row 000 and `000-baseline.md`, makes commit B `"exp 000: baseline"`. Main fast-forwards into `main`.
+Dispatch experimenter against the unmodified target. Brief: experiment 000, slug `baseline`, no hypothesis, no change plan; worktree `../autoresearch-wt/exp-000-baseline`, branch `exp/000-baseline` off HEAD; `eval / parse / timeout / direction / seed policy / custom columns` from CONFIG; current best = NaN. Main creates the worktree before dispatch. Experimenter skips commit A (no change plan → no edit), runs the eval, writes row 000 and `000-baseline.md`, makes commit B `"exp 000: record"`. Main fast-forwards into `main`.
 
 Update ATLAS to reflect `000` as the current best and the loop's starting state.
 
