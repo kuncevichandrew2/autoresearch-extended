@@ -49,7 +49,7 @@ Broad → narrow → synthesis. Between passes, write one line about what change
 
 ### 4. Write `research/NNN-<slug>.md`
 
-Write-once. Frontmatter + body:
+Write-once. Mostly free-form prose, focused on the topic from the brief. Required scaffolding is light:
 
 ```yaml
 ---
@@ -58,23 +58,28 @@ slug: <slug>
 type: digest | sweep | eda | broader-tooling | reflect
 date: <YYYY-MM-DD>
 trigger: <backlog id or prompt>
-hypotheses_produced: [H-NNN, H-NNN]
 ---
 
-## Context
+## Topic
+One paragraph: what was investigated and why.
+
 ## Findings
+Free-form. What you actually learned — claims, numbers, reframings,
+surprises. Organise however the material wants to be organised.
+
 ## Hypotheses produced
+- H-NNN — <one-liner> · falsifier: <numeric threshold>
+- …
 
-### H-NNN: <one-liner>
-- **Claim:** …
-- **Rationale:** … (cites sources)
-- **Method:** edit <file:line>, run <kind of change>
-- **Predicted Δmetric:** <direction + rough magnitude>
-- **Risks:** …
-- **Falsifier:** <concrete numeric threshold>
+## Sources
+- <url / arxiv id / file path> — one line on why it mattered
+- …
 
-## Recommendations        # type=reflect only
-## Notes
+Log every load-bearing source. Skip obvious junk, but err on the side
+of logging — future reflect passes will thank you.
+
+## Recommendations   # type=reflect only
+## Notes            # caveats, dead ends, things flagged speculative
 ```
 
 ### 5. Append one row to `research/research.tsv`

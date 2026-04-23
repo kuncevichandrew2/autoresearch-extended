@@ -14,13 +14,12 @@ Only `status=keep` on an experiment promotes a claim from LEADS.md (leads from r
 ## Principles
 
 1. **Binary keep/discard on one scalar.** Keep if it beats the current best in the configured direction (min or max). Otherwise revert.
-2. **Frozen contract.** CONFIG.md, the eval command, and bootstrap are immutable after baseline (experiment 000) parses. Any change requires re-setup.
+2. **Two layers: target vs. contract.** The only thing that changes each iteration is the **target** (files listed in `CONFIG.scope`) — that's the whole point of the loop. Everything else — the metric, the eval command, bootstrap, scope itself — is the **contract**, captured in `CONFIG.md`, and is strictly off-limits after baseline parses. Touching the contract requires re-setup.
 3. **Experiments are truth, research is advisory.** Only `keep` promotes a bullet from LEADS to FACTS.
-4. **Strict write ownership.** Each sub-agent has one directory: researcher writes only to `research/`; experimenter writes to `experiments/` and to target files inside `CONFIG.scope`. Main writes everywhere except those two areas. Reads are universal.
-5. **Self-contained briefs.** Sub-agents never navigate `autoresearch/`, never read prior notes, never ask back for context, never search the web (except researcher at URLs listed in the brief).
-6. **Worktree isolation.** Every experiment lives in its own git worktree on branch `exp/NNN-<slug>`. On keep — fast-forward merge. On anything else — cherry-pick only the record commit, no code.
-7. **Surgical edits.** Every changed line traces to the hypothesis. No drive-by cleanup.
-8. **Autonomous until stopped.** After setup, main never asks "continue?".
+4. **Sub-agents stay in their lane.** Each sub-agent only touches files inside its area: researcher writes to `research/`; experimenter writes to `experiments/` and to target files inside `CONFIG.scope`. Main writes everywhere else. Reads are universal.
+5. **Worktree isolation.** Every experiment lives in its own git worktree on branch `exp/NNN-<slug>`. On keep — fast-forward merge. On anything else — cherry-pick only the record commit, no code.
+6. **Surgical edits.** Every changed line traces to the hypothesis. No drive-by cleanup.
+7. **Autonomous until stopped.** After setup, main never asks "continue?".
 
 ---
 
@@ -159,6 +158,8 @@ R-009	reflect	2026-04-22	research/009-reflect-cycle-42.md	reflect after 10 exps;
 
 Write-once.
 
+Mostly free-form prose, focused on the topic from the brief. Required scaffolding is light:
+
 ```yaml
 ---
 id: R-NNN
@@ -166,23 +167,28 @@ slug: <slug>
 type: digest | sweep | eda | broader-tooling | reflect
 date: <YYYY-MM-DD>
 trigger: <backlog id or prompt>
-hypotheses_produced: [H-NNN, H-NNN]
 ---
 
-## Context
-## Findings
-## Hypotheses produced
+## Topic
+One paragraph: what was investigated and why.
 
-### H-NNN: <one-liner>
-- **Claim:** …
-- **Rationale:** … (cites sources)
-- **Method:** edit <file:line>, <kind of change>
-- **Predicted Δmetric:** <direction + rough magnitude>
-- **Risks:** …
-- **Falsifier:** <concrete numeric threshold>
+## Findings
+Free-form. Write what you actually learned — claims, numbers, reframings,
+what surprised you. Organise however the material wants to be organised.
+
+## Hypotheses produced
+- H-NNN — <one-liner> · falsifier: <numeric threshold>
+- …
+
+## Sources
+- <url / arxiv id / file path> — one line on why it mattered
+- …
+
+Log every load-bearing source. Skip obvious junk, but err on the side of
+logging — future reflect passes will thank you.
 
 ## Recommendations   # type=reflect only
-## Notes
+## Notes            # caveats, dead ends, things flagged speculative
 ```
 
 ### knowledge/<topic>.md
