@@ -1,29 +1,29 @@
 # MEMORY — research
 
-Память researcher. Owned: researcher, обновляется после каждой сессии; main сюда не пишет. Парный артефакт — sub-agents/research/log.tsv. Описание секций — references/file-structures.md.
+Researcher memory. Owned by researcher, updated after each session; main does not write here. Paired artifact — sub-agents/research/log.tsv. Section descriptions — references/file-structures.md.
 
-Кап ~400 строк. Сжатие: Recent → опциональные. Не сжимать: Status, Patterns, Avoid.
+Cap ~400 lines. Compression: Recent → optional. Do not compress: Status, Patterns, Avoid.
 
 ## Status
 
-(пусто — заполняется по мере появления research-тредов)
+(empty — filled as research threads accumulate)
 
 ## Recent
 
-(пусто)
+(empty)
 
 ## Patterns
 
-(пусто)
+(empty)
 
 ## Avoid
 
-(пусто)
+(empty)
 
 ## Adjacent domains
 
-(пусто)
+(empty)
 
 ## Scratch
 
-(пусто)
+(empty)

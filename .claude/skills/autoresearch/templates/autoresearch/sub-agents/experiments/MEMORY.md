@@ -1,29 +1,29 @@
 # MEMORY — experiments
 
-Память experimenter. Owned: experimenter, обновляется после каждой задачи; main сюда не пишет. Парный артефакт — sub-agents/experiments/log.tsv. Описание секций — references/file-structures.md.
+Experimenter memory. Owned by experimenter, updated after each task; main does not write here. Paired artifact — sub-agents/experiments/log.tsv. Section descriptions — references/file-structures.md.
 
-Кап ~400 строк. Сжатие: Recent → опциональные. Не сжимать: Status, Patterns, Avoid.
+Cap ~400 lines. Compression: Recent → optional. Do not compress: Status, Patterns, Avoid.
 
 ## Status
 
-(пусто — заполняется после первого прогона: шумовой пол, флаки, типичные таймауты, активные worktree)
+(empty — filled after the first run: noise floor, flakiness, typical timeouts, active worktrees)
 
 ## Recent
 
-(пусто)
+(empty)
 
 ## Patterns
 
-(пусто)
+(empty)
 
 ## Avoid
 
-(пусто)
+(empty)
 
 ## Tooling notes
 
-(пусто)
+(empty)
 
 ## Scratch
 
-(пусто)
+(empty)

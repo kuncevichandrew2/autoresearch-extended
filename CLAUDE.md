@@ -24,7 +24,7 @@ This repository is the **source** of the `autoresearch` Claude Code skill. It is
 ## Where to make changes
 
 - Setup flow (interview, scaffold, bootstrap, baseline) → `references/setup.md`.
-- Live loop (dispatch, integration, coordinator behaviour) → `SKILL.md ## Координация`.
+- Live loop (dispatch, integration, coordinator behaviour) → `SKILL.md ## Coordination`.
 - A file's purpose or schema (CONFIG, MEMORY, KNOWLEDGE, log.tsv, NNN-<slug>.md) → `references/file-structures.md`.
 - Sub-agent behaviour → the file under `agents/`.
 - Cross-cutting conventions → `SKILL.md`, but verify you're not duplicating what `references/file-structures.md` already owns.

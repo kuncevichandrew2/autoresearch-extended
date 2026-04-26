@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Идемпотентно. Перезапускаемо. Артефакты в .gitignore.
-# Перед загрузкой > 100 МБ или системной правкой — спросить пользователя.
-# Заморожен после прохода experiments/000.
+# Idempotent. Re-runnable. Artifacts in .gitignore.
+# Before downloading > 100 MB or making system-level changes — ask the user.
+# Frozen after experiment 000 passes.
 
 set -euo pipefail
 
@@ -10,7 +10,7 @@ set -euo pipefail
 # pip install -r requirements.txt
 # python scripts/download_data.py
 
-# health-check каждой интеграции из CONFIG.md
+# health-check each integration from CONFIG.md
 # python -c "import wandb, os; wandb.login(key=os.environ['WANDB_API_KEY'])"
 
 echo "bootstrap complete"

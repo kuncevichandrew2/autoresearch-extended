@@ -1,10 +1,10 @@
 # Bootstrap recipes
 
-bootstrap.sh — один скрипт, идемпотентный, перезапускаемый. Артефакты в .gitignore. Перед загрузкой > 100 МБ или системной правкой — спросить пользователя.
+bootstrap.sh — one script, idempotent, re-runnable. Artifacts in .gitignore. Before downloading > 100 MB or making system-level changes — ask the user.
 
-bootstrap.md — когда нужно несколько скриптов или ручные шаги (computer-use, manual auth).
+bootstrap.md — when multiple scripts or manual steps are needed (computer-use, manual auth).
 
-# Минимальный шаблон bootstrap.sh
+## Minimal bootstrap.sh template
 
 ```bash
 #!/usr/bin/env bash
@@ -19,22 +19,22 @@ python -c "import wandb, os; wandb.login(key=os.environ['WANDB_API_KEY'])"
 echo "bootstrap complete"
 ```
 
-# Что обычно лежит внутри
+## What typically goes inside
 
 ```
-окружение         venv / conda / poetry / pnpm
-зависимости       requirements.txt / pyproject.toml / package.json
-данные            scripts/download_data.py с size-check
-веса              huggingface-cli download / wget с проверкой sha
-кэш               очистка stale кэшей перед прогоном
-health-check      по одной команде на каждую интеграцию из CONFIG
+environment       venv / conda / poetry / pnpm
+dependencies      requirements.txt / pyproject.toml / package.json
+data              scripts/download_data.py with size-check
+weights           huggingface-cli download / wget with sha verification
+cache             clear stale caches before run
+health-check      one command per integration from CONFIG
 ```
 
-# bootstrap.md (мульти-скрипт)
+## bootstrap.md (multi-script)
 
 ```
 1. ./scripts/install_deps.sh
-2. ./scripts/fetch_data.sh    (≈ 12 ГБ, спросить пользователя)
-3. Открыть https://wandb.ai/authorize, скопировать ключ в .env
+2. ./scripts/fetch_data.sh    (≈ 12 GB, ask user first)
+3. Open https://wandb.ai/authorize, copy key to .env
 4. ./scripts/health_check.sh
 ```

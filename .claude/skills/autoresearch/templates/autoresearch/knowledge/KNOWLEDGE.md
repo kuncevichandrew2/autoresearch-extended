@@ -1,23 +1,23 @@
 # KNOWLEDGE
 
-Индекс/агрегатор накопленных знаний. Owned: main; пишется по итогам keep и при integrity-событиях. Не журнал — одна строка на пункт со ссылкой на `<topic>.md`. Описание секций — references/file-structures.md.
+Index and aggregator of accumulated knowledge. Owned by main; written after keep results and integrity events. Not a journal — one line per entry with a link to `<topic>.md`. Section descriptions — references/file-structures.md.
 
 ## Current best
 
-(будет установлено после baseline)
+(set after baseline)
 
 ## Confirmed topics
 
-(пусто — наполняется, когда тема набирает ≥ 2 keep)
+(empty — populated when a topic accumulates ≥ 2 keep results)
 
 ## Watch list
 
-(пусто — одиночные keep, ожидающие реплики)
+(empty — single keep results awaiting replication)
 
 ## Contested
 
-(пусто)
+(empty)
 
 ## Integrity events
 
-(пусто)
+(empty)

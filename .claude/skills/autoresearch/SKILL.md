@@ -1,137 +1,137 @@
 ---
 name: autoresearch
-description: Автономный цикл оптимизации для репозитория с одной скалярной метрикой. Триггерится на "запусти autoresearch", "оптимизируй X по метрике Y", "уменьши loss / latency / bundle size", "подними pass rate", "найди лучший вариант файла X", "сделай файл быстрее / меньше / лучше", указание целевого файла + метрики, или любую формулировку про итеративное улучшение под измеримую цель. Подходит к любой метрике, печатающей одно число (val_loss, p99_ms, bundle_kb, pass_at_k, judge_score, image_size_mb, …) — даже если пользователь не произнёс слово autoresearch. После одноразовой настройки главный поток становится координатором, который диспатчит двух фоновых под-агентов: experimenter (правит цель, гоняет eval, записывает результат) и researcher (читает источники, предлагает гипотезы).
+description: Autonomous optimization loop for any repository with a single scalar metric. Triggers on "run autoresearch", "optimize X by metric Y", "reduce loss / latency / bundle size", "improve pass rate", "find the best version of file X", "make it faster / smaller / better", a target file + metric, or any phrasing around iterative improvement toward a measurable goal. Works with any metric that prints one number (val_loss, p99_ms, bundle_kb, pass_at_k, judge_score, image_size_mb, …) — even if the user doesn't say the word autoresearch. After a one-time setup the main thread becomes an event-driven coordinator that dispatches two background sub-agents: experimenter (edits the target, runs the eval, records results) and researcher (reads sources, proposes hypotheses).
 ---
 
 # autoresearch
 
-Репо плюс одна метрика (число из shell-команды) превращается в автономный цикл. Главный поток — событийный координатор, в нем хранится главная информация и память. Два фоновых под-агента, experimenter и researcher, делают работу. Главный диспатчит их в фоне, ждёт уведомления, читает компактный отчёт, проверяет диск и интегрирует результат; если не достигнут предел concurrency — спавнятся новые агенты; в свободное время main размышляет и агрегирует. Знание копится на диске, под-агенты читают проект напрямую, в брифинг кладутся только указатели.
+A repo plus one metric (a number from a shell command) becomes an autonomous optimization loop. The main thread is an event-driven coordinator that holds all state and memory. Two background sub-agents, experimenter and researcher, do the work. Main dispatches them in the background, waits for completion notifications, reads each compact report, verifies disk state, and integrates the result; if concurrency headroom allows, it spawns new agents immediately; in free time main thinks and aggregates. Knowledge accumulates on disk; sub-agents read the project directly; briefings contain only pointers.
 
-## Инварианты
+## Invariants
 
-1. Замороженный контракт. CONFIG.md и bootstrap.sh замораживаются после прохода experiments/000.
-2. Бинарное keep/discard по одному скаляру.
-3. Эксперимент — истина, research — совещательный голос.
-4. Под-агенты пишут только в свою зону. Read-доступ ко всему проекту.
-5. Worktree на эксперимент. Main создаёт worktree до диспатча experimenter; experimenter получает path в брифе. Keep — ff-merge; иначе — cherry-pick только commit B (запись).
-6. Хирургические правки. Каждая изменённая строка обоснована гипотезой. Никакого попутного причёсывания.
-7. Автономность по умолчанию. После настройки главный не спрашивает разрешения продолжать.
-8. Прерывания пользователя first-class. Вопрос или мелкая просьба обрабатывается inline; фоновые под-агенты не останавливаются.
+1. Frozen contract. CONFIG.md and bootstrap.sh are frozen after experiment 000 passes.
+2. Binary keep/discard against a single scalar.
+3. Experiments are ground truth, research is advisory.
+4. Sub-agents write only to their own zone. Read access to the entire project.
+5. One worktree per experiment. Main creates the worktree before dispatching experimenter; experimenter receives the path in its brief. Keep → ff-merge; otherwise → cherry-pick only commit B (record).
+6. Surgical edits. Every changed line is justified by a hypothesis. No incidental cleanup.
+7. Autonomous by default. After setup, main does not ask permission to continue.
+8. User interrupts are first-class. A question or small request is handled inline; background sub-agents keep running.
 
-## Принципы
+## Principles
 
-Инварианты — что нельзя нарушать. Принципы — как мыслить.
+Invariants — what must never be violated. Principles — how to think.
 
-1. **Main никогда не простаивает.** Между диспатчем и возвратом main готовит следующий брифинг, верифицирует последний возврат, ужимает MEMORY/KNOWLEDGE при приближении к капу, переупорядочивает Queue. Idle допустим только если ничего не подходит — тогда main ждёт следующего Agent-complete.
-2. **Процедура отдельно от контекста.** Протоколы и правила живут в SKILL.md, agents/*.md, references/. Состояние и накопленное знание — в CONFIG.md, MEMORY.md, KNOWLEDGE.md, log.tsv. Никогда не смешивать процедуру и контекст в одном файле — это заставляет читателя сначала их разделить, прежде чем действовать.
-3. **Брифинг = mini-spec.** Под-агент не имеет сессионного контекста; over-specify дешевле, чем потом отлаживать недопонимание. Длинный брифинг — норма; в нём явно описываются background, scope boundaries, edge cases.
-4. **Отчёт несёт находку, не идентификаторы.** Если убрать тело отчёта и main принял бы те же решения — тело переписывается. Под-агент потратил compute и контекст — задача отчёта донести числа, сюрпризы, очевидный follow-up. Идентификаторы main и так читает из TSV.
-5. **Falsifier численный.** Каждая гипотеза несёт число, опровергающее её. Без численного falsifier эксперимент не может завершиться однозначным keep/discard.
-6. **Дисциплина размера.** Каждый мутируемый `.md` под autoresearch/ держится ≤ ~400 строк (одно окно Read). Порядок сжатия и несжимаемые секции — per-role (см. «Скелет MEMORY.md»). Write-once ноты (`NNN-<slug>.md`) не трогаем никогда.
+1. **Main never idles.** Between dispatch and return, main prepares the next briefing, verifies the last return, compresses MEMORY/KNOWLEDGE when approaching the cap, reorders the Queue. Idle is acceptable only when nothing useful remains — then main waits for the next Agent-complete notification.
+2. **Procedure separate from context.** Protocols and rules live in SKILL.md, agents/*.md, references/. State and accumulated knowledge live in CONFIG.md, MEMORY.md, KNOWLEDGE.md, log.tsv. Never mix procedure and context in the same file.
+3. **Briefing = mini-spec.** A sub-agent has no session context; over-specifying is cheaper than debugging misunderstandings later. A long briefing is normal; it explicitly covers background, scope boundaries, and edge cases.
+4. **Reports carry findings, not identifiers.** If removing the report body would leave main making the same decisions — rewrite the body. The sub-agent spent compute and context; the report's job is to surface numbers, surprises, and the obvious follow-up. Main already reads identifiers from the TSV.
+5. **Falsifiers are numeric.** Every hypothesis carries a number that falsifies it. Without a numeric falsifier an experiment cannot conclude with an unambiguous keep/discard.
+6. **Size discipline.** Every mutable `.md` under autoresearch/ stays ≤ ~400 lines (one Read window). Compression order and non-compressible sections are per-role (see "MEMORY.md skeleton"). Write-once notes (`NNN-<slug>.md`) are never touched.
 
-## Структура файлов
+## File structure
 
-В autoresearch/ накапливается всё, что агент знает. Дерево, схемы, примеры — references/file-structures.md.
+Everything the agent knows accumulates in autoresearch/. Tree, schemas, examples — references/file-structures.md.
 
-### Память: MEMORY.md и log.tsv
+### Memory: MEMORY.md and log.tsv
 
-У каждого агента (main, experimenter, researcher) — своя пара: MEMORY.md (живой контекст между задачами) и log.tsv (полный журнал событий). Это приватная зона записи своего агента; чужие агенты туда не пишут (read-доступ ко всему проекту по инвариантам остаётся). Каждый агент сам обновляет свои MEMORY.md и log.tsv по итогам своей задачи.
+Each agent (main, experimenter, researcher) has its own pair: MEMORY.md (live context between tasks) and log.tsv (full event log). This is their private write zone; other agents do not write here (read access to the full project remains per the invariants). Each agent updates its own MEMORY.md and log.tsv upon completing its task.
 
 - main           current/MEMORY.md + current/log.tsv
 - experimenter   sub-agents/experiments/MEMORY.md + log.tsv
 - researcher     sub-agents/research/MEMORY.md + log.tsv
 
-knowledge/ — общая зона в которой накапливаются знания агента (в относительно сжатом формате) по разным областям, пишет только main по итогам keep.
+knowledge/ — shared zone where the agent accumulates knowledge (in compressed form) across domains. Written only by main on keep.
 
-### Скелет MEMORY.md
+### MEMORY.md skeleton
 
-Назначение секций описано в references/file-structures.md. Секции per-role:
+Section descriptions — references/file-structures.md. Sections are per-role:
 
 ```
 main (current/):    Status · Queue · Recent · Patterns · Avoid
-                    Опциональные: Open questions · Tooling notes · Scratch
+                    Optional: Open questions · Tooling notes · Scratch
 experimenter:       Status · Recent · Patterns · Avoid
-                    Опциональные: Tooling notes · Scratch
+                    Optional: Tooling notes · Scratch
 researcher:         Status · Recent · Patterns · Avoid
-                    Опциональные: Adjacent domains · Scratch
-кап:                ~400 строк
-порядок сжатия (main):      Recent → опциональные → Open questions
-порядок сжатия (exp/res):   Recent → опциональные
-не сжимать:         Status, Queue (main), Patterns, Avoid
+                    Optional: Adjacent domains · Scratch
+cap:                ~400 lines
+compression order (main):       Recent → optional → Open questions
+compression order (exp/res):    Recent → optional
+do not compress:    Status, Queue (main only), Patterns, Avoid
 ```
 
-Cold-start (только current/MEMORY.md): свежий main, имея лишь CONFIG.md, current/MEMORY.md и последние 30 строк current/log.tsv, обязан возобновить работу.
+Cold-start (current/MEMORY.md only): a fresh main, given only CONFIG.md, current/MEMORY.md, and the last 30 lines of current/log.tsv, must be able to resume work.
 
-## Четыре фазы
+## Four phases
 
-1. Setup — интервью, картография, скаффолд, копирование агентов
-2. Prepare — bootstrap, проверка интеграций
-3. Baseline — эксперимент 000; CONFIG и bootstrap замораживаются
-4. Loop — бесконечный диспатч и интеграция
+1. Setup — interview, cartography, scaffold, copy agents
+2. Prepare — bootstrap, verify integrations
+3. Baseline — experiment 000; CONFIG and bootstrap are frozen
+4. Loop — continuous dispatch and integration
 
-Подробности — references/setup.md, references/interview.md, references/bootstrap-recipes.md.
+Details — references/setup.md, references/interview.md, references/bootstrap-recipes.md.
 
-## Координация (фаза 4)
+## Coordination (phase 4)
 
-Главный не простаивает, если есть возможность ещё делегировать. Между диспатчем и возвратом готовится следующий брифинг.
+Main does not idle if it can still delegate. While waiting for a return it prepares the next briefing.
 
-Параллелизм по умолчанию (override в CONFIG):
+Default concurrency (override in CONFIG):
 - experimenter=1
 - researcher=2
 
 ### Sub-agent delegation
 
-Делегирует конкретную задачу (например, «изменить параметр SEQ_LEN с 512 на 1024» или «исследуй последние тенденции в оптимизаторах LLM»). Под-агенты имеют read-доступ ко всему проекту и сами читают нужные файлы — в брифинг кладутся только указатели и контекст, который под-агент не догадается вытащить сам. Брифинг писать как mini-spec (см. Принцип 3): длинно, явно, с border-кейсами и scope-границами.
+Main dispatches with `run_in_background=True` and subscribes to the Agent-complete notification. When a sub-agent completes, main receives the notification and resumes by processing the sentinel in the response. If the notification does not arrive within the expected timeout — record as timeout, write an integrity event, reconstruct from TSV.
 
-Main диспатчит под-агента с `run_in_background=True` и подписывается на Agent-complete уведомление. Когда под-агент завершается, main получает уведомление и возобновляет работу по сентинелу в ответе. Если уведомление не пришло за ожидаемый таймаут — фиксировать как timeout, записать integrity-событие, реконструировать из TSV.
+Delegates a specific task (e.g., "change SEQ_LEN from 512 to 1024" or "survey recent LLM optimizer trends"). Sub-agents have read access to the entire project and pull what they need — briefings contain only pointers and context the sub-agent wouldn't think to fetch itself. Write briefings as mini-specs (see Principle 3): long, explicit, with border cases and scope boundaries.
 
-Возврат от под-агента: сентинел (`EXPERIMENT_DONE` / `RESEARCH_DONE`) + одна строка-заголовок (статус, ключевое число) + тело ≤ бюджета из CONFIG (что выяснено, сюрпризы, очевидный follow-up) + строка `refs:` с путями и SHA. Правило компактности (Принцип 4): если убрать тело — main принял бы те же решения, тело переписывается с реальной находкой; идентификаторы main и так читает из TSV.
+Sub-agent return: sentinel (`EXPERIMENT_DONE` / `RESEARCH_DONE`) + one header line (status, key number) + body ≤ token budget from CONFIG (what was found, surprises, obvious follow-up) + `refs:` line with paths and SHAs. Compactness rule (Principle 4): if removing the body would leave main making the same decisions, rewrite it with the real finding; main reads identifiers from the TSV anyway.
 
-### Общий flow интеграции
+### Integration flow
 
-Под-агент уже сделал свою часть: дописал строку в свой sub-agents/.../log.tsv, обновил свой MEMORY.md, на keep / invalid положил NNN-`<slug>`.md. Main замыкает цикл: верифицировать → понять → записать → диспатчить следующее.
+The sub-agent has already done its part: appended a row to its sub-agents/.../log.tsv, updated its MEMORY.md, and on keep / invalid placed NNN-`<slug>`.md. Main closes the loop: verify → understand → record → dispatch next.
 
-1. **Disk-check.** Последняя строка нужного TSV начинается с заявленного id; если статус подразумевает note — файл существует. Несовпадение — доверяем TSV, фиксируем integrity-событие в KNOWLEDGE.md, шаг интеграции пропускается.
-2. **Git.** На keep — ff-merge worktree, удалить worktree, удалить ветку (при ff-only fail — см. «Ошибки»). На discard / crash / timeout / invalid — cherry-pick commit B (запись), `worktree remove --force`, `branch -D`.
-3. **Thinking.** Как этот результат меняет общее понимание? Какую следующую гипотезу он подсвечивает или опровергает? Не появилось ли противоречие с уже подтверждёнными топиками в KNOWLEDGE? Этот шаг — главная творческая работа main; всё остальное — рутинная запись.
-4. **current/log.tsv.** Дописать строку (action, target, outcome, delta, notes).
-5. **current/MEMORY.md.** Обновить Status (best, активные агенты, флаги, шкала планировщика), Queue, Recent.
-6. **knowledge/.** На keep — обработать topic-файлы и индекс (см. «Обработка keep: knowledge» ниже).
-7. **Следующий брифинг.** Сформировать задачу для researcher или experimenter и, если concurrency позволяет, диспатчить (см. «Sub-agent delegation» выше). Если capacity занят — брифинг кладётся в Queue.
+1. **Disk-check.** The last row of the relevant TSV starts with the claimed id; if status implies a note file — it exists. Mismatch → trust the TSV, record an integrity event in KNOWLEDGE.md, skip this integration step.
+2. **Git.** On keep — ff-merge worktree, remove worktree, delete branch (on ff-only failure — see "Errors"). On discard / crash / timeout / invalid — cherry-pick commit B (record), `worktree remove --force`, `branch -D`.
+3. **Thinking.** How does this result change the overall picture? What hypothesis does it surface or refute? Does it contradict anything already confirmed in KNOWLEDGE? This step is main's primary creative work; everything else is routine bookkeeping.
+4. **current/log.tsv.** Append a row (action, target, outcome, delta, notes).
+5. **current/MEMORY.md.** Update Status (best, active agents, flags, scheduler state), Queue, Recent.
+6. **knowledge/.** On keep — process topic files and index (see "Keep: knowledge" below).
+7. **Next briefing.** Form a task for researcher or experimenter and, if concurrency allows, dispatch (see "Sub-agent delegation" above). If capacity is full — place the briefing in Queue.
 
-Чужие MEMORY.md и log.tsv main не модифицирует. Права записи: experimenter — sub-agents/experiments/ + CONFIG.scope; researcher — sub-agents/research/ + /tmp/research-`<id>`/. Чужая запись приводит к `git checkout HEAD -- <path>`, integrity-событию и review шаблона агента.
+Main does not modify other agents' MEMORY.md or log.tsv. Write permissions: experimenter — sub-agents/experiments/ + CONFIG.scope; researcher — sub-agents/research/ + /tmp/research-`<id>`/. Unauthorized writes trigger `git checkout HEAD -- <path>`, an integrity event, and a template review.
 
-### Обработка keep: knowledge
+### Keep: knowledge
 
-- При ≥ 2 keep по теме — создать knowledge/<topic>.md (proposition + evidence appendix); если файл уже есть — обновить.
-- В KNOWLEDGE.md передвинуть запись: Watch list ↔ Confirmed ↔ Contested.
-- Проверка противоречий: если в KNOWLEDGE.md есть запись с пересекающимся scope и противоположным утверждением — обе помечаются contested, в Queue добавляется analysis-researcher. Исходные данные не удаляются.
+- At ≥ 2 keep on a topic — create knowledge/<topic>.md (propositions + evidence appendix); if the file already exists — update it.
+- In KNOWLEDGE.md move the entry: Watch list ↔ Confirmed ↔ Contested.
+- Contradiction check: if KNOWLEDGE.md has an entry with overlapping scope and the opposite claim — mark both contested, add an analysis-researcher to the Queue. Source data is never deleted.
 
 ### invalid
 
-Два invalid подряд — в Status поднимается флаг paused для experimenter; researcher продолжает; в Queue ставится analysis-researcher на причину инвалидов.
+Two invalid results in a row — raise the paused flag for experimenter in Status; researcher continues; add an analysis-researcher to the Queue to investigate the cause.
 
-## Планировщик
+## Scheduler
 
-Каденции живут в CONFIG, состояние выводится в current/MEMORY.md Status.
-
-```
-exploration_every       сколько keep-промахов до exploration
-analysis_every          сколько экспериментов до analysis
-consolidation_every     сколько экспериментов до сжатия и продвижения тем
-coldstart_check_every   как часто проверять cold-startability
-```
-
-## Ошибки
+Cadences live in CONFIG; state is shown in current/MEMORY.md Status.
 
 ```
-TSV ↔ отчёт расхождение     доверяем TSV, integrity-событие, пропуск
-два invalid подряд          paused experimenter, analysis-researcher в Queue
-ff-only конфликт            abort, пауза, оповестить пользователя
-чужая запись                checkout HEAD, integrity-событие, агент под review
-осиротевший worktree        worktree remove --force + branch -D, реконструкция из TSV
+exploration_every       how many keep-misses before exploration
+analysis_every          how many experiments before analysis
+consolidation_every     how many experiments before compression and topic promotion
+coldstart_check_every   how often to verify cold-startability
 ```
 
-## Стоп
+## Errors
 
-Только по прерыванию пользователя. Поднять paused в Status, дать активным под-агентам завершиться, интегрировать возвраты, остановиться.
+```
+TSV ↔ report mismatch       trust TSV, integrity event, skip
+two invalid in a row        pause experimenter, add analysis-researcher to Queue
+ff-only conflict            abort, pause, notify user
+unauthorized write          checkout HEAD, integrity event, agent under review
+orphaned worktree           worktree remove --force + branch -D, reconstruct from TSV
+```
+
+## Stop
+
+Only on user interrupt. Raise paused in Status, let active sub-agents finish, integrate returns, stop.

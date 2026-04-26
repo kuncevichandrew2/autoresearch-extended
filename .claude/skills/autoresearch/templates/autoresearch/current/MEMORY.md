@@ -1,8 +1,8 @@
 # MEMORY — current
 
-Память main: cold-startable между диспатчами и рестартами. Owned: main; чужие агенты сюда не пишут. Парный артефакт — current/log.tsv. Описание секций — references/file-structures.md.
+Main memory: cold-startable between dispatches and restarts. Owned by main; other agents do not write here. Paired artifact — current/log.tsv. Section descriptions — references/file-structures.md.
 
-Кап ~400 строк. Сжатие: Recent → опциональные → Open questions. Не сжимать: Status, Queue, Patterns, Avoid.
+Cap ~400 lines. Compression: Recent → optional → Open questions. Do not compress: Status, Queue, Patterns, Avoid.
 
 ## Status
 
@@ -14,28 +14,28 @@
 
 ## Queue
 
-(заполняется в конце фазы Setup из ответов интервью; 2–4 пункта прозой)
+(filled at the end of Setup phase from interview answers; 2–4 items in prose)
 
 ## Recent
 
-(пусто — обновляется после каждой интеграции)
+(empty — updated after each integration)
 
 ## Patterns
 
-(пусто)
+(empty)
 
 ## Avoid
 
-(пусто)
+(empty)
 
 ## Open questions
 
-(пусто)
+(empty)
 
 ## Tooling notes
 
-(пусто)
+(empty)
 
 ## Scratch
 
-(пусто)
+(empty)

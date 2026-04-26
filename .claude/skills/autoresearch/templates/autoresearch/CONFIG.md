@@ -1,15 +1,15 @@
 # CONFIG
 
-Замороженный контракт. Редактируется до прохода experiments/000; после — заморожен. Если что-то всё-таки должно измениться — это re-setup, не edit.
+Frozen contract. Editable until experiment 000 passes; frozen after. If something must change — that is re-setup, not an edit.
 
 # Goal
 
-Одна строка: что оптимизируем и почему именно эта метрика.
+One line: what we are optimizing and why this metric.
 
 # Metric
 
 ```
-name             например, val_loss
+name             e.g. val_loss
 direction        min | max
 eval_command     bash scripts/eval.sh
 parse_method     regex:^val_loss=([0-9.]+)$ | json_path:result.metric | exit_code
@@ -19,7 +19,7 @@ seed_policy      fixed:N | sampled:K-runs | none
 
 # Scope
 
-Globs, которые experimenter может править. Всё остальное — вне зоны.
+Globs that experimenter may edit. Everything else is out of bounds.
 
 ```
 src/**/*.py
@@ -28,7 +28,7 @@ configs/*.yaml
 
 # Custom TSV columns
 
-Дополнения после 8 фиксированных колонок в sub-agents/experiments/log.tsv, в этом порядке.
+Columns appended after the 8 fixed columns in sub-agents/experiments/log.tsv, in this order.
 
 ```
 wallclock_min
@@ -44,7 +44,7 @@ max_parallel_researchers     2
 
 # Scheduler
 
-Каденции; состояние выводится в current/MEMORY.md Status.
+Cadences; state is shown in current/MEMORY.md Status.
 
 ```
 exploration_every       10
@@ -53,7 +53,7 @@ consolidation_every     25
 coldstart_check_every   25
 ```
 
-# Brief budgets (токены)
+# Brief budgets (tokens)
 
 ```
 experimenter      2000
@@ -62,7 +62,7 @@ analysis          6000
 exploration       2000
 ```
 
-# Return budgets (токены)
+# Return budgets (tokens)
 
 ```
 experimenter_body   500
@@ -71,11 +71,11 @@ researcher_body     800
 
 # Constraints
 
-Жёсткие правила: held-out, лицензии, детерминизм, wall-clock.
+Hard rules: held-out, licenses, determinism, wall-clock.
 
 # Integrations
 
-На каждую: name, env, health.
+Per integration: name, env, health command.
 
 ```
 - name: wandb
