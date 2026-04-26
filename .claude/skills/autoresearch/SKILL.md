@@ -1,389 +1,137 @@
 ---
 name: autoresearch
-description: Autonomous optimization loop for any repo with one scalar metric. Triggers on "run autoresearch", "start the experiment loop", "optimize X by metric Y", "reduce loss / latency / bundle size", "raise pass rate", or a target file + metric. After a one-time setup, the main thread is an event-driven coordinator that dispatches two background sub-agents — `experimenter` (edits target, runs eval, records) and `researcher` (digests sources, proposes hypotheses). Works for any metric reducible to one shell command that prints one parseable number (val_loss, p99_ms, bundle_kb, pass_at_k, judge_score, …).
+description: Автономный цикл оптимизации для репозитория с одной скалярной метрикой. Триггерится на "запусти autoresearch", "оптимизируй X по метрике Y", "уменьши loss / latency / bundle size", "подними pass rate", "найди лучший вариант файла X", "сделай файл быстрее / меньше / лучше", указание целевого файла + метрики, или любую формулировку про итеративное улучшение под измеримую цель. Подходит к любой метрике, печатающей одно число (val_loss, p99_ms, bundle_kb, pass_at_k, judge_score, image_size_mb, …) — даже если пользователь не произнёс слово autoresearch. После одноразовой настройки главный поток становится координатором, который диспатчит двух фоновых под-агентов: experimenter (правит цель, гоняет eval, записывает результат) и researcher (читает источники, предлагает гипотезы).
 ---
 
 # autoresearch
 
-Repo + one metric (a number from a shell command) → autonomous loop. Main is an event-driven coordinator; two background sub-agents (experimenter, researcher) execute tasks. Main calls `Agent(subagent_type=..., run_in_background=true, prompt=<brief>)`, waits for Agent-complete notifications, reads the compact report, does a disk-check, integrates each return as it arrives, and dispatches the next task.
+Репо плюс одна метрика (число из shell-команды) превращается в автономный цикл. Главный поток — событийный координатор, в нем хранится главная информация и память. Два фоновых под-агента, experimenter и researcher, делают работу. Главный диспатчит их в фоне, ждёт уведомления, читает компактный отчёт, проверяет диск и интегрирует результат; если не достигнут предел concurrency — спавнятся новые агенты; в свободное время main размышляет и агрегирует. Знание копится на диске, под-агенты читают проект напрямую, в брифинг кладутся только указатели.
 
-## Invariant
+## Инварианты
 
-Only `status=keep` on an experiment promotes a claim from LEADS.md (leads from research) to FACTS.md (confirmed). Research is advisory; the experiment decides. Knowledge flow: main frames a hypothesis → researcher grounds it and sharpens the falsifier → experimenter measures → FACTS.md (+ optionally `knowledge/<topic>.md`).
+1. Замороженный контракт. CONFIG.md и bootstrap.sh замораживаются после прохода experiments/000.
+2. Бинарное keep/discard по одному скаляру.
+3. Эксперимент — истина, research — совещательный голос.
+4. Под-агенты пишут только в свою зону. Read-доступ ко всему проекту.
+5. Worktree на эксперимент. Main создаёт worktree до диспатча experimenter; experimenter получает path в брифе. Keep — ff-merge; иначе — cherry-pick только commit B (запись).
+6. Хирургические правки. Каждая изменённая строка обоснована гипотезой. Никакого попутного причёсывания.
+7. Автономность по умолчанию. После настройки главный не спрашивает разрешения продолжать.
+8. Прерывания пользователя first-class. Вопрос или мелкая просьба обрабатывается inline; фоновые под-агенты не останавливаются.
 
-## Principles
+## Принципы
 
-1. **Binary keep/discard on one scalar.** Keep if it beats the current best in the configured direction (min or max). Otherwise revert.
-2. **Frozen contract.** After baseline parses, `CONFIG.md` and `bootstrap.{sh,md}` freeze — the metric, eval command, and scope definition don't change. (Target files under `CONFIG.scope` and main's own state — ATLAS/FACTS/LEADS/backlog — keep writing freely; this is about the contract, not all writes.)
-3. **Experiments are truth, research is advisory.** Only `keep` promotes a bullet from LEADS to FACTS.
-4. **Sub-agents stay in their lane.** Each sub-agent only touches files inside its area: researcher writes to `research/`; experimenter writes to `experiments/` and to target files inside `CONFIG.scope`. Main writes everywhere else. Reads are universal.
-5. **Worktree isolation.** Every experiment lives in its own git worktree on branch `exp/NNN-<slug>`. On keep — fast-forward merge. On anything else — cherry-pick only the record commit, no code.
-6. **Surgical edits.** Every changed line traces to the hypothesis. No drive-by cleanup.
-7. **Autonomous until stopped.** After setup, main never asks "continue?".
-8. **User interrupts are first-class.** A question or quick ask from the user mid-loop (a plot, a diff, a sanity check) is handled inline — do it, then resume dispatching without asking for permission. Running sub-agents keep running in parallel while main handles the ask.
+Инварианты — что нельзя нарушать. Принципы — как мыслить.
 
----
+1. **Main никогда не простаивает.** Между диспатчем и возвратом main готовит следующий брифинг, верифицирует последний возврат, ужимает MEMORY/KNOWLEDGE при приближении к капу, переупорядочивает Queue. Idle допустим только если ничего не подходит — тогда main ждёт следующего Agent-complete.
+2. **Процедура отдельно от контекста.** Протоколы и правила живут в SKILL.md, agents/*.md, references/. Состояние и накопленное знание — в CONFIG.md, MEMORY.md, KNOWLEDGE.md, log.tsv. Никогда не смешивать процедуру и контекст в одном файле — это заставляет читателя сначала их разделить, прежде чем действовать.
+3. **Брифинг = mini-spec.** Под-агент не имеет сессионного контекста; over-specify дешевле, чем потом отлаживать недопонимание. Длинный брифинг — норма; в нём явно описываются background, scope boundaries, edge cases.
+4. **Отчёт несёт находку, не идентификаторы.** Если убрать тело отчёта и main принял бы те же решения — тело переписывается. Под-агент потратил compute и контекст — задача отчёта донести числа, сюрпризы, очевидный follow-up. Идентификаторы main и так читает из TSV.
+5. **Falsifier численный.** Каждая гипотеза несёт число, опровергающее её. Без численного falsifier эксперимент не может завершиться однозначным keep/discard.
+6. **Дисциплина размера.** Каждый мутируемый `.md` под autoresearch/ держится ≤ ~400 строк (одно окно Read). Порядок сжатия и несжимаемые секции — per-role (см. «Скелет MEMORY.md»). Write-once ноты (`NNN-<slug>.md`) не трогаем никогда.
 
-## File structure
+## Структура файлов
 
-### Tree
+В autoresearch/ накапливается всё, что агент знает. Дерево, схемы, примеры — references/file-structures.md.
 
-```
-autoresearch/
-├── CONFIG.md                       # frozen after baseline
-├── bootstrap.sh | bootstrap.md     # frozen after baseline
-│
-├── ATLAS.md                        # main — live dashboard (decays)
-├── FACTS.md                        # main — confirmed knowledge (accretes)
-├── LEADS.md                        # main — leads from research (churns)
-├── backlog.tsv                     # main — work queue
-├── knowledge/<topic>.md            # emergent; ≥ 2 keeps on the topic or promoted by analysis
-│
-├── experiments/{experiments.tsv, NNN-<slug>.md}   # experimenter — append / write-once
-├── research/{research.tsv, NNN-<slug>.md}         # researcher — append / write-once
-└── workbench/                      # main scratchpad
-```
+### Память: MEMORY.md и log.tsv
 
-**Size rule.** Every mutable `.md` stays under ~400 lines (one Read window). As it approaches the cap, main compresses: trim stale ATLAS prose, collapse older FACTS/LEADS entries into one-liners, promote a recurring topic into `knowledge/<topic>.md`. Write-once notes (`experiments/NNN-*.md`, `research/NNN-*.md`) are never touched.
+У каждого агента (main, experimenter, researcher) — своя пара: MEMORY.md (живой контекст между задачами) и log.tsv (полный журнал событий). Это приватная зона записи своего агента; чужие агенты туда не пишут (read-доступ ко всему проекту по инвариантам остаётся). Каждый агент сам обновляет свои MEMORY.md и log.tsv по итогам своей задачи.
 
-### ATLAS / FACTS / LEADS
+- main           current/MEMORY.md + current/log.tsv
+- experimenter   sub-agents/experiments/MEMORY.md + log.tsv
+- researcher     sub-agents/research/MEMORY.md + log.tsv
 
-Three files with different dynamics and **no prescribed section structure**. Main gets a description of each file's purpose and decides what to write, when to add a heading, when to reorganise. The files are prose, not schemas.
+knowledge/ — общая зона в которой накапливаются знания агента (в относительно сжатом формате) по разным областям, пишет только main по итогам keep.
 
-**ATLAS.md** — a running summary of *this* autoresearch: the current best metric + commit, which sub-agents are running, active flags (e.g. `paused`, `recommend_resetup`), and whatever short context describes "where the loop is right now". Overwritten as state moves; nothing load-bearing lives here.
+### Скелет MEMORY.md
 
-**FACTS.md** — the agent's accumulated experience. Everything that has been **confirmed**: claims promoted by `keep` experiments (citing `exp/NNN`), recurring dead ends worth remembering, integration decisions, integrity events. Written to mainly after integrating experimenter returns. Accretes over time.
-
-**LEADS.md** — ideas and threads surfaced by researcher: tentative claims awaiting experimental confirmation, domain context, open questions, speculative patterns. Connected to `knowledge/<topic>.md` — a lead that turns into something load-bearing may graduate there. Reworked as claims are confirmed or refuted.
-
-> Main introduces headings, subsections, and callouts when they help, and drops them when they stop helping. Whatever shape the material wants.
-
-### CONFIG.md — frozen contract
+Назначение секций описано в references/file-structures.md. Секции per-role:
 
 ```
-goal              one line: what we're optimising and why
-metric            val_loss
-direction         min | max
-eval_command      bash scripts/eval.sh
-parse_method      regex:^val_loss=([0-9.]+)$ | json_path:… | exit_code
-timeout_sec       1800
-scope             globs the experimenter may edit
-seed_policy       fixed:N | sampled:K-runs | none
-reflect_every     10
-max_parallel_experimenters  1
-max_parallel_researchers    2
-custom_tsv_columns          list (appended to experiments.tsv in order)
-
-## Context            3–6 bullets: repo shape, target, what a good run looks like
-## Constraints        hard rules: held-out data, licences, determinism, wall-clock caps
-## Integrations       per integration: name, env vars, health command
+main (current/):    Status · Queue · Recent · Patterns · Avoid
+                    Опциональные: Open questions · Tooling notes · Scratch
+experimenter:       Status · Recent · Patterns · Avoid
+                    Опциональные: Tooling notes · Scratch
+researcher:         Status · Recent · Patterns · Avoid
+                    Опциональные: Adjacent domains · Scratch
+кап:                ~400 строк
+порядок сжатия (main):      Recent → опциональные → Open questions
+порядок сжатия (exp/res):   Recent → опциональные
+не сжимать:         Status, Queue (main), Patterns, Avoid
 ```
 
-### backlog.tsv — work queue
+Cold-start (только current/MEMORY.md): свежий main, имея лишь CONFIG.md, current/MEMORY.md и последние 30 строк current/log.tsv, обязан возобновить работу.
 
-9 columns, append-only. In-place mutation by id via atomic `read → edit → temp → rename`.
+## Четыре фазы
 
-```
-id	kind	status	claim	source	created	consumed_by	outcome	notes
-H-019	hypothesis	pending	apply Muon to 2D params	research/008-muon-digest.md#H-019	2026-04-20	-	-	top of queue
-H-017	hypothesis	consumed	cosine warmup 10% beats linear	research/007-warmup-sweep.md#H-017	2026-04-15	exp/042	keep	-0.012 val_bpb
-```
+1. Setup — интервью, картография, скаффолд, копирование агентов
+2. Prepare — bootstrap, проверка интеграций
+3. Baseline — эксперимент 000; CONFIG и bootstrap замораживаются
+4. Loop — бесконечный диспатч и интеграция
 
-- `kind` ∈ {hypothesis, question, deferred, tooling}
-- `status` ∈ {pending, blocked, running, consumed, done, dropped}
-- Columns 1, 2, 4, 5, 6 are immutable after append; 3, 7, 8, 9 are mutable.
+Подробности — references/setup.md, references/interview.md, references/bootstrap-recipes.md.
 
-### experiments/experiments.tsv — ship's log
+## Координация (фаза 4)
 
-8 fixed columns + `custom_tsv_columns` from CONFIG in order.
+Главный не простаивает, если есть возможность ещё делегировать. Между диспатчем и возвратом готовится следующий брифинг.
 
-```
-id	status	metric	delta	hypothesis	commit	timestamp	note
-000	keep	3.074	0	-	a0b1c2d	2026-04-10T08:00Z	experiments/000-baseline.md
-042	keep	3.041	-0.012	H-017	a1b2c3d	2026-04-22T12:30Z	experiments/042-warmup-cosine.md
-043	discard	3.089	+0.048	-	e4f5g6h	2026-04-22T13:05Z	-
-```
+Параллелизм по умолчанию (override в CONFIG):
+- experimenter=1
+- researcher=2
 
-- `status` ∈ {keep, discard, crash, timeout, invalid}
-- `metric` = NaN on crash / timeout / parse failure
-- `commit` — 7-char SHA of the record commit (commit B), **not** the code commit
-- `delta`: negative improves when `direction=min`; positive improves when `max`
+### Sub-agent delegation
 
-### experiments/NNN-<slug>.md — experiment record
+Делегирует конкретную задачу (например, «изменить параметр SEQ_LEN с 512 на 1024» или «исследуй последние тенденции в оптимизаторах LLM»). Под-агенты имеют read-доступ ко всему проекту и сами читают нужные файлы — в брифинг кладутся только указатели и контекст, который под-агент не догадается вытащить сам. Брифинг писать как mini-spec (см. Принцип 3): длинно, явно, с border-кейсами и scope-границами.
 
-Write-once. Created only when `status ∈ {keep, invalid}`.
+Main диспатчит под-агента с `run_in_background=True` и подписывается на Agent-complete уведомление. Когда под-агент завершается, main получает уведомление и возобновляет работу по сентинелу в ответе. Если уведомление не пришло за ожидаемый таймаут — фиксировать как timeout, записать integrity-событие, реконструировать из TSV.
 
-```yaml
----
-id: NNN
-slug: <slug>
-kind: experiment
-date: <ISO8601>
-status: keep | invalid
-parent: <NNN of parent>
-source_hypothesis: H-NNN | -
-commit: <SHA of commit B>
-metric: <number | NaN>
-delta: <signed | NaN>
----
+Возврат от под-агента: сентинел (`EXPERIMENT_DONE` / `RESEARCH_DONE`) + одна строка-заголовок (статус, ключевое число) + тело ≤ бюджета из CONFIG (что выяснено, сюрпризы, очевидный follow-up) + строка `refs:` с путями и SHA. Правило компактности (Принцип 4): если убрать тело — main принял бы те же решения, тело переписывается с реальной находкой; идентификаторы main и так читает из TSV.
 
-## Hypothesis        one paragraph
-## Changes           bullets: file:line — why
-## Result            metric, delta, direction check, wall time, surprises
-## Log excerpt       last ~20 signal lines
-## Notes             caveats, related FACTS/LEADS bullets
-```
+### Общий flow интеграции
 
-### research/research.tsv
+Под-агент уже сделал свою часть: дописал строку в свой sub-agents/.../log.tsv, обновил свой MEMORY.md, на keep / invalid положил NNN-`<slug>`.md. Main замыкает цикл: верифицировать → понять → записать → диспатчить следующее.
 
-5 columns, one row per completed session.
+1. **Disk-check.** Последняя строка нужного TSV начинается с заявленного id; если статус подразумевает note — файл существует. Несовпадение — доверяем TSV, фиксируем integrity-событие в KNOWLEDGE.md, шаг интеграции пропускается.
+2. **Git.** На keep — ff-merge worktree, удалить worktree, удалить ветку (при ff-only fail — см. «Ошибки»). На discard / crash / timeout / invalid — cherry-pick commit B (запись), `worktree remove --force`, `branch -D`.
+3. **Thinking.** Как этот результат меняет общее понимание? Какую следующую гипотезу он подсвечивает или опровергает? Не появилось ли противоречие с уже подтверждёнными топиками в KNOWLEDGE? Этот шаг — главная творческая работа main; всё остальное — рутинная запись.
+4. **current/log.tsv.** Дописать строку (action, target, outcome, delta, notes).
+5. **current/MEMORY.md.** Обновить Status (best, активные агенты, флаги, шкала планировщика), Queue, Recent.
+6. **knowledge/.** На keep — обработать topic-файлы и индекс (см. «Обработка keep: knowledge» ниже).
+7. **Следующий брифинг.** Сформировать задачу для researcher или experimenter и, если concurrency позволяет, диспатчить (см. «Sub-agent delegation» выше). Если capacity занят — брифинг кладётся в Queue.
+
+Чужие MEMORY.md и log.tsv main не модифицирует. Права записи: experimenter — sub-agents/experiments/ + CONFIG.scope; researcher — sub-agents/research/ + /tmp/research-`<id>`/. Чужая запись приводит к `git checkout HEAD -- <path>`, integrity-событию и review шаблона агента.
+
+### Обработка keep: knowledge
+
+- При ≥ 2 keep по теме — создать knowledge/<topic>.md (proposition + evidence appendix); если файл уже есть — обновить.
+- В KNOWLEDGE.md передвинуть запись: Watch list ↔ Confirmed ↔ Contested.
+- Проверка противоречий: если в KNOWLEDGE.md есть запись с пересекающимся scope и противоположным утверждением — обе помечаются contested, в Queue добавляется analysis-researcher. Исходные данные не удаляются.
+
+### invalid
+
+Два invalid подряд — в Status поднимается флаг paused для experimenter; researcher продолжает; в Queue ставится analysis-researcher на причину инвалидов.
+
+## Планировщик
+
+Каденции живут в CONFIG, состояние выводится в current/MEMORY.md Status.
 
 ```
-id	type	date	report	one_line
-R-008	deep-research	2026-04-20	research/008-muon-digest.md	Muon optimizer; H-019, H-020
-R-009	analysis	2026-04-22	research/009-analysis-cycle-42.md	analysis after 10 exps; H-021 added
-R-010	exploration	2026-04-24	research/010-exploration-distill.md	distillation literature; adjacent to current axis
+exploration_every       сколько keep-промахов до exploration
+analysis_every          сколько экспериментов до analysis
+consolidation_every     сколько экспериментов до сжатия и продвижения тем
+coldstart_check_every   как часто проверять cold-startability
 ```
 
-`type` ∈ {deep-research, analysis, broader-tooling, exploration}.
-
-### research/NNN-<slug>.md — session digest
-
-Write-once.
-
-Mostly free-form prose, focused on the topic from the brief. Required scaffolding is light:
-
-```yaml
----
-id: R-NNN
-slug: <slug>
-type: deep-research | analysis | broader-tooling | exploration
-date: <YYYY-MM-DD>
-trigger: <backlog id or prompt>
----
-
-## Topic
-One paragraph: what was investigated and why.
-
-## Findings
-Free-form. Write what you actually learned — claims, numbers, reframings,
-what surprised you. Organise however the material wants to be organised.
-
-## Hypotheses produced
-- H-NNN — <one-liner> · falsifier: <numeric threshold>
-- …
-
-## Sources
-- <url / arxiv id / file path> — one line on why it mattered
-- …
-
-Log every load-bearing source. Skip obvious junk, but err on the side of
-logging — future analysis passes will thank you.
-
-## Recommendations   # type=analysis only
-## Notes            # caveats, dead ends, things flagged speculative
-```
-
-### knowledge/<topic>.md
-
-Emergent. Created only once a topic has accumulated ≥ 2 keep-experiments or analysis has explicitly promoted it. Verified facts, precise numbers, load-bearing heuristics. Not reshuffled.
-
-### ID alphabet
-
-NNN — experiment · R-NNN — research · H-NNN / Q-NNN / D-NNN / T-NNN — backlog (hypothesis / question / deferred / tooling). Zero-padded three digits. Monotonic. Never reused.
-
-### Hypothesis flow
-
-Default: backlog (`kind=hypothesis`) → researcher (ground it, tighten the falsifier) → experimenter (measure). A sharp, well-founded idea may skip researcher; a vague one may loop back to researcher. Detours are judgement calls, not violations.
-
----
-
-## Sub-agent protocols
-
-Full protocols live in `agents/experimenter.md` and `agents/researcher.md` (copied during setup into the project's agent directory — `.claude/agents/` for Claude Code, `.codex/agents/`, `.gemini/agents/`, etc. depending on provider — as `experimenter.md` and `researcher.md`; only Mission and Common failure modes are adapted — everything else is left untouched). Below is only goals and key guardrails.
-
-**experimenter** — a disciplined senior engineer. Goal: exactly one experiment, end-to-end. Enters a worktree pre-created by main on branch `exp/NNN-<slug>`, applies the change_plan (minimal diff, one variable, nothing outside scope), runs the eval with a timeout, parses the metric, decides `keep/discard/crash/timeout/invalid`, makes two commits (A: code, B: TSV + note), returns a compact report. **The recorded number is ground truth:** no fabrication, no retry-to-success, no best-of-N, no silent flag twiddling. Writes only to `autoresearch/experiments/` and target files inside scope. On `keep`/`invalid` writes a note; on `discard/crash/timeout` — no note.
-
-**One fix attempt.** On `crash` / `timeout` / `discard`, before reporting, experimenter may make **one** honest fix attempt — but only when the failure clearly traces to how the change_plan was applied (typo, wrong path, wrong call site, missing import). Never a blind rerun, never a fresh-seed hunt, never flag twiddling to nudge the metric. If the second attempt fails too, report honestly; if discard reflects a real metric, no retry — record it. Details in `agents/experimenter.md`.
-
-**researcher** — a PhD-level collaborator. Gets an abstract task / idea / hypothesis. Goal: exactly one research task of one of these types:
-
-- **deep-research** — take the abstract task and research it widely. Read primary sources across the web, synthesise, propose sharper hypotheses. This is where an idea gets grounded and its falsifier sharpened.
-- **analysis** — dig into the project's own files: recent experiments, FACTS/LEADS, run logs. Allowed to run short scratch scripts in `/tmp/research-<id>/` (≤ 60 s, no GPU, no network). Identifies exhausted axes, emerging patterns, dead ends. Produces `## Recommendations` main applies mechanically (bullets to promote/retract, hypotheses to queue/drop).
-- **broader-tooling** — evaluate tools or libraries *outside* the metric-computation path (training infra, profilers, new frameworks). Maturity, integration cost, failure modes. Never modifies the eval.
-- **exploration** — deliberately *unanchored* from current hypotheses. Read around the problem — adjacent domains, underused techniques, new literature, contrarian takes — to enrich LEADS with fresh context and avoid getting stuck in local optima. Main queues these periodically so the loop isn't just exploiting recent ideas.
-
-Proposes 1–3 hypotheses with a **numeric** falsifier, target files, predicted magnitude. Cites load-bearing claims. Writes only to `research/` (plus `/tmp/research-<id>/` scratch). Never edits `experiments.tsv`, CONFIG, target files, the eval, FACTS.md, LEADS.md, or backlog.tsv. Details in `agents/researcher.md`.
-
-Common style: briefs are self-contained (no back-asks); the report is insights first, metadata last.
-
----
-
-## 4 phases
-
-| Phase | Artifact | Exit gate |
-|---|---|---|
-| 1. Setup | CLAUDE.md, CONFIG.md, tree, both agents installed | CONFIG valid, scaffold created |
-| 2. Prepare | `bootstrap.{sh,md}`, integrations verified | bootstrap exit 0, all green |
-| 3. Baseline | row 000 in experiments.tsv, ATLAS initialised | row 000 parses → CONFIG + bootstrap freeze |
-| 4. Loop | endless dispatch/integrate | exits on user interrupt |
-
-### Phase 1 — Setup (with the user)
-
-**Step 1. Repo cartography → CLAUDE.md.** Explore entry points, build, target files, eval flow. Write CLAUDE.md at the repo root capturing the whole architecture and context you understood.
-
-**Step 2. Interview via AskUserQuestion blocks.** One call per block; pre-sketch options from the repo, then ask.
-
-- **A · Goal, metric, direction.** Target file(s) · metric · min/max · seed policy (`fixed:N` / `sampled:K-runs` / `none`).
-- **B · Metric suggestions.** Catalogue: val_loss, pass_at_k, f1_macro, auroc, judge_score, latency_p99_ms, bundle_kb, hbm_peak_gb, etc. (not a closed list).
-- **C · Eval flow.** Command · parser (`regex:…` / `json_path:…` / `exit_code`) · timeout · any custom TSV columns.
-- **D · Research context.** Domain · known ceilings / SOTA · prior art · constraints.
-- **E · Integrations.** Grep for W&B, MLflow, Docker, LLM judges. One AskUserQuestion call with one sub-question per detected integration (max 4): scope + env vars + health command.
-
-**Step 3. Scaffold.** Build the tree under `autoresearch/`. Write CONFIG.md from Step 2 answers. Create TSVs with headers only. Write FACTS.md, LEADS.md, and ATLAS.md each as a short file — just a one-line description of its purpose so main knows what goes where. No prescribed sections. Seed backlog with 2–4 `hypothesis/pending` rows + 1–3 `deferred/pending`. Copy this skill's `agents/experimenter.md` and `agents/researcher.md` into the project's agent directory — `.claude/agents/` for Claude Code, `.codex/agents/`, `.gemini/agents/`, … depending on the provider. Adapt only Mission and Common failure modes to the domain. Do not touch frontmatter, the Protocol section, or the schemas.
-
-### Phase 2 — Prepare
-
-Write `bootstrap.sh` (or `bootstrap.md` for multi-script / computer-use / manual-auth setups) — idempotent, rerunnable, artifacts in `.gitignore`. Before any download > 100 MB or write to a shared system — confirm with the user. Run until exit 0. Run the health check of each integration. Record `YYYY-MM-DD — integrations verified: <names>` in FACTS.md.
-
-### Phase 3 — Baseline
-
-Dispatch experimenter against the unmodified target. Brief: experiment 000, slug `baseline`, no hypothesis, no change plan; worktree `../autoresearch-wt/exp-000-baseline`, branch `exp/000-baseline` off HEAD; `eval / parse / timeout / direction / seed policy / custom columns` from CONFIG; current best = NaN. Main creates the worktree before dispatch. Experimenter skips commit A (no change plan → no edit), runs the eval, writes row 000 and `000-baseline.md`, makes commit B `"exp 000: record"`. Main fast-forwards into `main`.
-
-Update ATLAS to reflect `000` as the current best and the loop's starting state.
-
-If the metric is NaN — iterate over `eval_command` / `parse_method` / `timeout_sec`. CONFIG stays editable until row 000 parses. Once it does — CONFIG and bootstrap **freeze**.
-
-### Phase 4 — Loop
-
-Main becomes an event-driven coordinator. See the next section.
-
----
-
-## Coordination (phase 4)
-
-**Main never sits idle.** Main is single-threaded — it doesn't think in parallel — but between dispatch and return it prepares and dispatches the next brief (up to the concurrency cap), verifies the latest return, compresses ATLAS/FACTS/LEADS as a mutable `.md` approaches ~400 lines, and reorders or trims `backlog.tsv`. Idling is fine only if nothing fits — main wakes on the next Agent-complete.
-
-**Concurrency** (override in CONFIG). Baseline:
-
-- 1 experimenter (heavy GPU/disk evals serialise).
-- 3 researcher (cheap, I/O-bound).
-
-Before dispatching experimenter, main creates the worktree:
-
-```sh
-git worktree add ../autoresearch-wt/exp-NNN-<slug> -b exp/NNN-<slug> <parent_commit>
-```
-
-`worktree_path` and `branch` go in the brief; the sub-agent `cd`s into it and works there.
-
-### User interrupts (handled inline)
-
-If the user interjects mid-loop — a question, a request for a plot, a quick edit somewhere unrelated — main handles it inline and resumes dispatching without asking for permission. Running sub-agents keep running in background. Example flow:
+## Ошибки
 
 ```
-main dispatches exp 042 (experimenter running in background)
-  ↓
-user: "plot the loss curve for the last 30 experiments"
-  ↓
-main reads experiments.tsv, writes workbench/loss-plot.py, runs it,
-shows the plot path — while exp 042 keeps running
-  ↓
-user sees the plot, says nothing further
-  ↓
-main goes straight back to the dispatch/integrate cycle
+TSV ↔ отчёт расхождение     доверяем TSV, integrity-событие, пропуск
+два invalid подряд          paused experimenter, analysis-researcher в Queue
+ff-only конфликт            abort, пауза, оповестить пользователя
+чужая запись                checkout HEAD, integrity-событие, агент под review
+осиротевший worktree        worktree remove --force + branch -D, реконструкция из TSV
 ```
 
-No "should I continue?" question. The loop is the default state; user asks are a higher-priority task that preempt nothing on the sub-agent side.
+## Стоп
 
-### Delegation (main → sub-agent): task brief
-
-Prose, self-contained. Write it like a short message to a colleague: say what needs to happen, and give concrete facts the sub-agent couldn't guess. Briefs can run long — err on the side of over-specifying. The sub-agent has no session context, so spelling out background, pitfalls, scope boundaries, and edge cases up front is far cheaper than debugging a misunderstanding after the fact. Detailed step-by-step instructions are fine; treat the brief as a mini-spec, not a tweet.
-
-**experimenter brief** must contain: the hypothesis (one or two sentences with a direction and a **numeric** falsifier); the change plan (file paths with line numbers where it matters, exact values); worktree path + branch + parent commit; scope (subset of `CONFIG.scope`); eval + parse + timeout; direction + current best; seed policy; paths for the TSV row and the note; `custom_tsv_columns` in order.
-
-**researcher brief** must contain: the task (often abstract — an idea, a question, a hypothesis to ground); `type` (deep-research / analysis / broader-tooling / exploration); `trigger` (backlog id or prompt); research id + slug. Inline context that saves re-reading: relevant recent experiments, specific bullets from FACTS/LEADS, URLs / arxiv ids / file paths. For `analysis`: inline the last N experiments and the relevant FACTS/LEADS slice. For `exploration`: say what the current axes are so researcher knows what to *avoid* drifting back into. Paths for the TSV row and the report.
-
-### Return (sub-agent → main): compact report
-
-Structure:
-
-1. Sentinel: `EXPERIMENT_DONE` or `RESEARCH_DONE`.
-2. One sentence with the status and the key number.
-3. Body — what was *actually* learned: numbers, what surprised you, how the hypothesis reframes, the obvious follow-up.
-4. At the end: a `refs:` line with paths and SHAs. Everything else main reads from the TSV.
-
-**Rule.** If removing the body wouldn't change any decision main makes next, rewrite the body with the actual finding. The sub-agent spent compute and context learning *something*; the job of the report is to convey that, not to recite ids main already knows.
-
-Mini-example:
-
-```
-EXPERIMENT_DONE
-042 warmup-cosine: keep. val_loss 3.041 (-0.012 vs best), H-017.
-
-Cosine warmup at 10% clears linear-2% on every axis; the improvement
-concentrates in the first 3k steps (curves converge from 5k) — the win is
-about early-lr shape, not asymptotic. Worth testing warmup_ratio ∈ {5%, 15%}.
-
-refs: commit a1b2c3d · note experiments/042-warmup-cosine.md
-```
-
-### Verification (after every return)
-
-Cheap disk check, not a gate:
-
-1. `tail -1 <referenced_tsv>` starts with the reported id.
-2. If the status implies a note — the file exists on disk.
-3. Mismatch → trust the TSV, record the incident in FACTS (`YYYY-MM-DD — <id> report/tsv mismatch, trusting TSV`), skip integration for this return.
-
-### Integration by return type
-
-**Experiment keep:**
-
-```sh
-git merge --ff-only exp/NNN-<slug>
-git worktree remove ../autoresearch-wt/exp-NNN-<slug>
-git branch -d exp/NNN-<slug>
-```
-
-Then: move the matching claim from LEADS into FACTS, citing `exp/NNN`; mark the backlog row `consumed/keep`; update ATLAS with the new best and whatever short signal is worth keeping.
-
-**discard / crash / timeout:** the code change must *not* reach main, only the record commit.
-
-```sh
-git cherry-pick <record_commit>
-git worktree remove ../autoresearch-wt/exp-NNN-<slug>
-git branch -D exp/NNN-<slug>
-```
-
-Close the backlog row with `outcome=<status>`; reflect the attempt in ATLAS. A recurring failure pattern is worth capturing in FACTS so future dispatches don't re-run it.
-
-**invalid**: cherry-pick the record commit if there is one; otherwise just drop the worktree. Close backlog `outcome=invalid`. Two consecutive invalids → set `recommend_resetup=true` in ATLAS, pause experimenter dispatch; researchers keep going.
-
-**Research deep-research / broader-tooling / exploration**: hypotheses → backlog as pending `H-NNN`; supported claims and context → LEADS. Exploration findings in particular land in LEADS even without a hypothesis — that's the point of the type.
-
-**Research analysis**: apply the Recommendations section to FACTS / LEADS / backlog mechanically.
-
-### When something goes wrong
-
-Log, recover, keep going. Escalate only when the loop can't move.
-
-- **TSV/report mismatch** → trust the TSV, record the incident in FACTS, skip.
-- **Two consecutive invalids** → `recommend_resetup=true` flag in ATLAS, pause experimenter.
-- **ff-only conflict** (shouldn't happen at concurrency=1) → abort, pause, notify the user.
-- **Foreign write by a sub-agent** → `git checkout HEAD -- <path>`, record the incident in FACTS, flag the agent template for review.
-- **Orphan worktree** after a failed integration → `git worktree remove --force` + `git branch -D`, reconstruct state from the TSV.
-
-### Stopping
-
-Only on user interrupt: set `paused` in ATLAS, let running sub-agents finish, integrate their returns, stop.
-
-### Re-setup
-
-Triggered when CONFIG, bootstrap, or the eval must change after baseline. Last resort. Most "this feels like re-setup" moments are really a reason to file a `question` in backlog.
-
-1. Stop the loop (user interrupt).
-2. Clean up orphans: `git worktree list` → `git worktree remove --force` all `autoresearch-wt/*`; `git branch -D exp/*`.
-3. Archive: `git mv autoresearch autoresearch.archive-<date>`.
-4. Re-run Phases 1–3.
-5. Hand-port relevant bullets from the old FACTS.md and LEADS.md into the new files. **The `experiments.tsv` history is not carried over** — the baselines differ.
+Только по прерыванию пользователя. Поднять paused в Status, дать активным под-агентам завершиться, интегрировать возвраты, остановиться.

@@ -23,7 +23,8 @@ their returns as they arrive:
 
 - **`experimenter`** — runs one experiment end-to-end in an isolated git
   worktree. Applies a minimal hypothesis-bearing change, runs the eval,
-  parses a scalar, records to `experiments.tsv`, commits twice, returns.
+  parses a scalar, records to `sub-agents/experiments/log.tsv`, commits
+  twice, returns.
 - **`researcher`** — runs one research task (digest a source, run a
   literature sweep, do light EDA, evaluate tooling, or reflect on recent
   experiments). Proposes numerically falsifiable hypotheses for the
@@ -89,20 +90,24 @@ autoresearch/
 ├── CONFIG.md                       # frozen: goal · metric · eval · scope · integrations
 ├── bootstrap.sh OR bootstrap.md    # frozen: idempotent one-time init
 │
-├── ATLAS.md                        # live dashboard (decays)
-├── LORE.md                         # aggregation of everything the agent has learned (accretes)
-├── backlog.tsv                     # queue: hypotheses · questions · deferred · tooling
-├── knowledge/<topic>.md            # high-bar narrative deep-dives
+├── current/                        # main-owned: live state
+│   ├── MEMORY.md                   # cold-startable dashboard (Queue, Status, Recent, …)
+│   ├── log.tsv                     # activity log
+│   └── workbench/                  # scratch space
 │
-├── experiments/                    # experimenter-owned
-│   ├── experiments.tsv             # ship's log
-│   └── NNN-<slug>.md               # per-experiment note (keep or invalid)
+├── knowledge/                      # main-owned: accreted learning
+│   ├── KNOWLEDGE.md                # index of confirmed topics
+│   └── <topic>.md                  # propositions + evidence (created at ≥ 2 keep)
 │
-├── research/                       # researcher-owned
-│   ├── research.tsv                # session log
-│   └── NNN-<slug>.md               # per-session digest
-│
-└── workbench/                      # main-owned scratchpad
+└── sub-agents/
+    ├── experiments/                # experimenter-owned
+    │   ├── MEMORY.md               # experimenter memory
+    │   ├── log.tsv                 # experiment ship's log
+    │   └── NNN-<slug>.md           # per-experiment note (keep or invalid)
+    └── research/                   # researcher-owned
+        ├── MEMORY.md               # researcher memory
+        ├── log.tsv                 # research session log
+        └── NNN-<slug>.md           # per-session digest
 ```
 
 ## Why it works
@@ -112,7 +117,7 @@ autoresearch/
 2. **Frozen contract.** `CONFIG.md`, the eval, and `bootstrap` are
    immutable after baseline — changes require re-setup.
 3. **Experiments are ground truth, research is advisory.** Only a `keep`
-   experiment promotes a claim into `LORE ## Established`.
+   experiment promotes a claim into `knowledge/<topic>.md ## Propositions`.
 4. **Strict write ownership.** Each sub-agent owns exactly one directory
    (plus target files for the experimenter). All integration of returns
    happens in the main coordinator.
@@ -149,4 +154,4 @@ autoresearch/
 - MemGPT / [Letta](https://www.letta.com/blog/agent-memory) and
   [Generative Agents](https://arxiv.org/abs/2304.03442) — long-term memory
   patterns (tiered memory, chronological log + reflection) behind
-  ATLAS/LORE.
+  the `current/` + `knowledge/` split.
