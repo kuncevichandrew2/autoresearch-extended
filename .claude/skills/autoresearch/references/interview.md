@@ -1,6 +1,6 @@
 # Interview
 
-One AskUserQuestion block — one question. Options are pre-drafted from the repo: the user selects, not types.
+One AskUserQuestion block — one question. Options are pre-drafted from the repo: the user selects, not types. Between calls, think: what does the repo already tell you? Form a concrete recommendation before asking — the question should present your best guess and invite a correction, not offload the decision to the user.
 
 ```
 A. Goal, metric, direction
