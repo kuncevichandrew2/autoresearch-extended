@@ -1,3 +1,4 @@
 trash/
 .claude/settings.local.json
+.claude/skills/autoresearch-ru/
 .DS_Store

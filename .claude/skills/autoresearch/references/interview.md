@@ -1,6 +1,6 @@
 # Interview
 
-One AskUserQuestion block — one question. Options are pre-drafted from the repo: the user selects, not types. Between calls, think: what does the repo already tell you? Form a concrete recommendation before asking — the question should present your best guess and invite a correction, not offload the decision to the user.
+AskUserQuestion is mandatory — never silently assume load-bearing setup (target file, metric, eval command, dataset variant, integrations); guessing here costs hours of wrong-direction bootstrap. One AskUserQuestion block — one question. Options are pre-drafted from the repo: the user selects, not types. Between calls, think: what does the repo already tell you? Form a concrete recommendation before asking — the question should present your best guess and invite a correction, not offload the decision to the user. If a block leaves real ambiguity, ask another before scaffolding — don't write files over uncertainty.
 
 ```
 A. Goal, metric, direction
